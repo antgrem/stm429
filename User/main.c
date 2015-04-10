@@ -12,6 +12,7 @@
  *	@packs		STM32F4xx Keil packs version 2.2.0 or greater required
  *	@stdperiph	STM32F4xx Standard peripheral drivers version 1.4.0 or greater required
  */
+
 /* Include core modules */
 #include "stm32f4xx.h"
 /* Include my libraries here */
