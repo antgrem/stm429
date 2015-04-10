@@ -122,7 +122,7 @@ int main(void) {
         //set new time
 			datatime.hours = 0;
             datatime.minutes = 59;
-            datatime.seconds = 55;
+            datatime.seconds = 45;
             datatime.year = 15;
             datatime.month = 4;
             datatime.date = 9;
