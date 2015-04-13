@@ -513,7 +513,7 @@ static void SensorsThread(void const * argument)
         
         /* Wait delay in microseconds */
         /* You can do other things here instead of delay */
-        osDelay(BMP180_Data.Delay);
+        osDelay(5);
         
         /* Read temperature first */
         TM_BMP180_ReadTemperature(&BMP180_Data);
@@ -523,17 +523,18 @@ static void SensorsThread(void const * argument)
         
         /* Wait delay in microseconds */
         /* You can do other things here instead of delay */
-        osDelay(BMP180_Data.Delay);
+        osDelay(5);
         
         /* Read pressure value */
         TM_BMP180_ReadPressure(&BMP180_Data);
         
         /* Format data and print to USART */
-        sprintf(buffer, "Temp: %2.3f degrees\nPressure: %6d Pascals\nAltitude at current pressure: %3.2f meters\n\n",
+        sprintf(buffer, "T: %2.3f degrees\nPr: %6d P\nAlt: %3.2f m\n",
             BMP180_Data.Temperature,
             BMP180_Data.Pressure,
             BMP180_Data.Altitude
         );
+			TM_ILI9341_Puts(10, 30, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 			
 			MPL115_Start_Conversion();
 		
@@ -552,14 +553,14 @@ static void SensorsThread(void const * argument)
 		
 /* Display data on LCD */
 				
-        sprintf(buffer, "X rotation: %4d", L3GD20_Data.X);
-        TM_ILI9341_Puts(10, 40, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
-        sprintf(buffer, "Y rotation: %4d", L3GD20_Data.Y);
-        TM_ILI9341_Puts(10, 60, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
-        sprintf(buffer, "Z rotation: %4d", L3GD20_Data.Z);
-        TM_ILI9341_Puts(10, 80, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
-			  sprintf(buffer, "Mod rotation: %.3f", temp_f);
-        TM_ILI9341_Puts(10, 100, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_BLUE);
+//        sprintf(buffer, "X rotation: %4d", L3GD20_Data.X);
+//        TM_ILI9341_Puts(10, 40, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
+//        sprintf(buffer, "Y rotation: %4d", L3GD20_Data.Y);
+//        TM_ILI9341_Puts(10, 60, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
+//        sprintf(buffer, "Z rotation: %4d", L3GD20_Data.Z);
+//        TM_ILI9341_Puts(10, 80, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
+//			  sprintf(buffer, "Mod rotation: %.3f", temp_f);
+//        TM_ILI9341_Puts(10, 100, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_BLUE);
 			
 			if (maximum_rotation < temp_f)
 				maximum_rotation = temp_f; 
@@ -616,7 +617,7 @@ void TM_RTC_RequestHandler()
                 ADC_Value
     );
     //Send to USART
-    TM_ILI9341_Puts(10, 250, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
+    TM_ILI9341_Puts(10, 150, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 
 }
 
