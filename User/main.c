@@ -484,6 +484,7 @@ static void SDCardThread(void const * argument)
 static void SensorsThread(void const * argument)
 {
 	uint8_t tempr[2];
+	uint16_t  ADC_Value;
 	
 	osDelay(1900);
  
@@ -531,9 +532,28 @@ static void SensorsThread(void const * argument)
             // the shared resource safely.
         }
 			}
+			
+	//Get time
+  TM_RTC_GetDateTime(&datatime, TM_RTC_Format_BIN);
 	
-			TM_I2C_ReadMulti(STMPE811_I2C, 0x9F, 0x00, tempr, 2); // Read temperature from LM75
-			real_tempr = (float)tempr[0] + 0.125*(tempr[1]>>5);
+	//Read ADC1 channel 13
+	ADC_Value = TM_ADC_Read(ADC1, ADC_Channel_13);
+    
+    //Format time
+    sprintf(buffer, "%02d.%02d.%04d %02d:%02d:%02d  ADC: %u\n",
+                datatime.date,
+                datatime.month,
+                datatime.year + 2000,
+                datatime.hours,
+                datatime.minutes,
+                datatime.seconds,
+                ADC_Value
+    );
+    //Send to USART
+    TM_ILI9341_Puts(10, 150, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
+	
+		TM_I2C_ReadMulti(STMPE811_I2C, 0x9F, 0x00, tempr, 2); // Read temperature from LM75
+		real_tempr = (float)tempr[0] + 0.125*(tempr[1]>>5);
 			
 		if( xMutex_LCD != NULL )
 			{
@@ -618,25 +638,7 @@ void Init_CE_Gpio(void)
 //Called on wakeup interrupt
 void TM_RTC_RequestHandler() 
 {
-	uint16_t  ADC_Value;
-    //Get time
-    TM_RTC_GetDateTime(&datatime, TM_RTC_Format_BIN);
-	
-	//Read ADC1 channel 13
-	ADC_Value = TM_ADC_Read(ADC1, ADC_Channel_13);
-    
-    //Format time
-    sprintf(buffer, "%02d.%02d.%04d %02d:%02d:%02d  ADC: %u\n",
-                datatime.date,
-                datatime.month,
-                datatime.year + 2000,
-                datatime.hours,
-                datatime.minutes,
-                datatime.seconds,
-                ADC_Value
-    );
-    //Send to USART
-    TM_ILI9341_Puts(10, 150, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
+
 
 }
 
