@@ -19,6 +19,7 @@
 #include <math.h>
 #include "tm_stm32f4_l3gd20.h"
 #include "cmsis_os.h"
+#include "semphr.h"
 #include <MPL115A1.h>
 #include "tm_stm32f4_fatfs.h"
 #include "tm_stm32f4_exti.h"

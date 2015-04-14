@@ -38,6 +38,7 @@ void Init_CE_Gpio(void);
 	TM_BMP180_t BMP180_Data;
 	
 	xTaskHandle xTouchThread;
+	xSemaphoreHandle  xSemaphore_LCD, xMutex_LCD;
 	
 	
 		/* Fatfs object */
@@ -174,7 +175,13 @@ int main(void) {
 			TM_I2C_Write(STMPE811_I2C, STMPE811_ADDRESS, STMPE811_INT_EN, 0x01);	
 		};
 		
+
+
+		xSemaphore_LCD = xSemaphoreCreateBinary();
+		xMutex_LCD = xSemaphoreCreateMutex();
 		
+		if ((xSemaphore_LCD == NULL) || (xMutex_LCD == NULL))	
+			while(1); //Error creation Semaphore
 	
 //create thread for taken touch sensor data. it will be susspend after all
 //	osThreadDef(TouchThread, TouchThread, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
@@ -208,8 +215,6 @@ int main(void) {
 //		while(1);
 //	
 
-
-//		
 
 //    value = LM75_ReadReg(0x00);
 //		TM_ILI9341_Puts(60, 03, "werfdfs", &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_BLUE2);
@@ -344,6 +349,26 @@ static void StartThread(void const * argument)
   {
     		 		  
    	GPIO_ToggleBits(GPIOG, GPIO_Pin_13);
+		
+		if( xMutex_LCD != NULL )
+			{
+        // See if we can obtain the semaphore.  If the semaphore is not available
+        // wait 10 ticks to see if it becomes free.	
+        if( xSemaphoreTake( xMutex_LCD, ( portTickType ) 50 ) == pdTRUE )
+        {
+            // We were able to obtain the semaphore and can now access the shared resource.
+            sprintf(buffer, "System works good");
+						TM_ILI9341_Puts(20, 80, buffer, &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_ORANGE);
+					
+            // We have finished accessing the shared resource.  Release the semaphore.
+            xSemaphoreGive( xMutex_LCD );
+        }
+        else
+        {
+            // We could not obtain the semaphore and can therefore not access
+            // the shared resource safely.
+        }
+			}
 		
 		osDelay(1000);
 //		osDelayUntil(xLastWakeTime, 1000);
@@ -486,32 +511,80 @@ static void SensorsThread(void const * argument)
         /* Read pressure value */
         TM_BMP180_ReadPressure(&BMP180_Data);
         
-        /* Format data and print to USART */
-        sprintf(buffer, "T = %2.3f *C  Pr: %6d P   Alt: %3.2f m",
-            BMP180_Data.Temperature,
-            BMP180_Data.Pressure,
-            BMP180_Data.Altitude
-        );
-			TM_ILI9341_Puts(10, 30, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
-			
+				
+		if( xMutex_LCD != NULL )
+			{
+        // See if we can obtain the semaphore.  If the semaphore is not available
+        // wait 10 ticks to see if it becomes free.	
+        if( xSemaphoreTake( xMutex_LCD, ( portTickType ) 50 ) == pdTRUE )
+        {
+            // We were able to obtain the semaphore and can now access the shared resource.
+						sprintf(buffer, "T = %2.3f *C  Pr: %6d P   Alt: %3.2f m", BMP180_Data.Temperature, BMP180_Data.Pressure, BMP180_Data.Altitude);
+						TM_ILI9341_Puts(10, 30, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
+					
+            // We have finished accessing the shared resource.  Release the semaphore.
+            xSemaphoreGive( xMutex_LCD );
+        }
+        else
+        {
+            // We could not obtain the semaphore and can therefore not access
+            // the shared resource safely.
+        }
+			}
 	
 			TM_I2C_ReadMulti(STMPE811_I2C, 0x9F, 0x00, tempr, 2); // Read temperature from LM75
 			real_tempr = (float)tempr[0] + 0.125*(tempr[1]>>5);
 			
-			sprintf(buffer, "T_LM75 = %.3f", real_tempr);
-			TM_ILI9341_Puts(10, 40, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_GREEN);
+		if( xMutex_LCD != NULL )
+			{
+        // See if we can obtain the semaphore.  If the semaphore is not available
+        // wait 10 ticks to see if it becomes free.	
+        if( xSemaphoreTake( xMutex_LCD, ( portTickType ) 50 ) == pdTRUE )
+        {
+            // We were able to obtain the semaphore and can now access the shared resource.
+						sprintf(buffer, "T_LM75 = %.3f", real_tempr);
+						TM_ILI9341_Puts(10, 40, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_GREEN);
+					
+            // We have finished accessing the shared resource.  Release the semaphore.
+            xSemaphoreGive( xMutex_LCD );
+        }
+        else
+        {
+            // We could not obtain the semaphore and can therefore not access
+            // the shared resource safely.
+        }
+			}			
+			
+
 		
 /* Read acceleration data */
       TM_L3GD20_Read(&L3GD20_Data);
 			temp_f = sqrt(L3GD20_Data.X*L3GD20_Data.X + L3GD20_Data.Y*L3GD20_Data.Y + L3GD20_Data.Z*L3GD20_Data.Z);
 			if (maximum_rotation < temp_f)
 			maximum_rotation = temp_f;
-				
-      sprintf(buffer, "X = %4d, Y = %4d, Z = %4d", L3GD20_Data.X, L3GD20_Data.Y, L3GD20_Data.Z);
-      TM_ILI9341_Puts(10, 60, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
+	
+		if( xMutex_LCD != NULL )
+			{
+        // See if we can obtain the semaphore.  If the semaphore is not available
+        // wait 10 ticks to see if it becomes free.	
+        if( xSemaphoreTake( xMutex_LCD, ( portTickType ) 50 ) == pdTRUE )
+        {
+            // We were able to obtain the semaphore and can now access the shared resource.
+							sprintf(buffer, "X = %4d, Y = %4d, Z = %4d", L3GD20_Data.X, L3GD20_Data.Y, L3GD20_Data.Z);
+							TM_ILI9341_Puts(10, 60, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 
-			sprintf(buffer, "M = %.3f, MAX = %.3f", temp_f, maximum_rotation);
-      TM_ILI9341_Puts(10, 80, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_BLUE);
+							sprintf(buffer, "M = %.3f, MAX = %.3f", temp_f, maximum_rotation);
+							TM_ILI9341_Puts(10, 80, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_BLUE);
+					
+            // We have finished accessing the shared resource.  Release the semaphore.
+            xSemaphoreGive( xMutex_LCD );
+        }
+        else
+        {
+            // We could not obtain the semaphore and can therefore not access
+            // the shared resource safely.
+        }
+			}		
 
 			if (TM_DISCO_ButtonPressed()) maximum_rotation = 0;
 						
@@ -569,9 +642,9 @@ void TM_RTC_RequestHandler()
 
 /* Custom request handler function */
 /* Called on alarm A interrupt */
-void TM_RTC_AlarmAHandler(void) {
-    /* Show user to USART */
-    TM_ILI9341_Puts(10, 230, "Alarm A triggered\n", &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
+void TM_RTC_AlarmAHandler(void) 
+{
+    TM_DISCO_LedToggle(LED_RED);
     
     /* Disable Alarm so it will not trigger next week at the same time */
     //TM_RTC_DisableAlarm(TM_RTC_Alarm_A);
