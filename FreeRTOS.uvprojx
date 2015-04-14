@@ -14,7 +14,7 @@
         <TargetCommonOption>
           <Device>STM32F429ZITx</Device>
           <Vendor>STMicroelectronics</Vendor>
-          <PackID>Keil.STM32F4xx_DFP.2.3.0</PackID>
+          <PackID>Keil.STM32F4xx_DFP.2.4.0</PackID>
           <PackURL>http://www.keil.com/pack</PackURL>
           <Cpu>IROM(0x08000000,0x200000) IRAM(0x20000000,0x30000) IRAM2(0x10000000,0x10000) CPUTYPE("Cortex-M4") FPU2 CLOCK(12000000) ELITTLE</Cpu>
           <FlashUtilSpec></FlashUtilSpec>
@@ -607,11 +607,6 @@
               <FileName>tm_stm32f4_fatfs.c</FileName>
               <FileType>1</FileType>
               <FilePath>.\User\tm_stm32f4_fatfs.c</FilePath>
-            </File>
-            <File>
-              <FileName>MPL115A1.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>.\User\MPL115A1\MPL115A1.c</FilePath>
             </File>
             <File>
               <FileName>tm_stm32f4_nrf24l01.c</FileName>

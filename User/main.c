@@ -14,27 +14,7 @@
  */
 
 /* Include core modules */
-#include "stm32f4xx.h"
-/* Include my libraries here */
-#include "defines.h"
-#include "tm_stm32f4_disco.h"
-#include "tm_stm32f4_delay.h"
-#include "tm_stm32f4_rtc.h"
-#include "tm_stm32f4_adc.h"
-#include "tm_stm32f4_bmp180.h"
-//#include "tm_stm32f4_usart.h"
-//#include "tm_stm32f4_ili9341.h"
-#include "tm_stm32f4_ili9341_ltdc.h"
-#include "tm_stm32f4_nrf24l01.h"
-#include "tm_stm32f4_i2c.h"
-#include "tm_stm32f4_stmpe811.h"
-#include <stdio.h>
-#include <math.h>
-#include "tm_stm32f4_l3gd20.h"
-#include "cmsis_os.h"
-#include <MPL115A1.h>
-#include "tm_stm32f4_fatfs.h"
-#include "tm_stm32f4_exti.h"
+#include "main.h"
 
 
 
@@ -50,9 +30,6 @@ void Init_CE_Gpio(void);
 	TM_L3GD20_t L3GD20_Data;
   char buffer[100];
 	float temp_f, maximum_rotation;
-	
-	MPL115A1_CoefTypeDef Coef;
-	MPL115A1_PressureTypeDef MPL_Data;
 	
 	float real_tempr;
 	TM_STMPE811_TouchData Coord_811, Statik_Coord;
@@ -94,15 +71,6 @@ TM_RTC_t datatime;
 TM_RTC_AlarmTime_t AlarmTime;
 
 int main(void) {
-//	TM_NRF24L01_Transmit_Status_t transmissionStatus;
-	char str[40];
-	uint16_t value, temp;
-	TM_STMPE811_State_t Status_stmpe811;
-	TM_STMPE811_TouchData Touch_data_stmpe811;
-/* L3GD20 Struct */
-
-	
-	
 	
 	/* Initialize system */
 	SystemInit();
@@ -116,20 +84,22 @@ int main(void) {
 	/* Initialize button on board */
 	TM_DISCO_ButtonInit(); 
 	
+	Init_CE_Gpio();
+	
     //Initialize RTC with internal 32768Hz clock
     //It's not very accurate
     if (!TM_RTC_Init(TM_RTC_ClockSource_Internal)) {
         //RTC was first time initialized
         //set new time
-			datatime.hours = 0;
-            datatime.minutes = 59;
-            datatime.seconds = 45;
-            datatime.year = 15;
-            datatime.month = 4;
-            datatime.date = 9;
-            datatime.day = 6;
+				datatime.hours = 0;
+        datatime.minutes = 59;
+        datatime.seconds = 45;
+        datatime.year = 15;
+        datatime.month = 4;
+        datatime.date = 9;
+        datatime.day = 6;
 			//Set new time
-            TM_RTC_SetDateTime(&datatime, TM_RTC_Format_BIN);
+        TM_RTC_SetDateTime(&datatime, TM_RTC_Format_BIN);
     }
     
     //Set wakeup interrupt every 1 second
@@ -152,6 +122,14 @@ int main(void) {
 	 
     /* Initialize ADC1 on channel 13, this is pin PC3*/
     TM_ADC_Init(ADC1, ADC_Channel_13);
+		
+		
+	TM_ILI9341_Init();
+	TM_ILI9341_Fill(ILI9341_COLOR_BROWN);
+	TM_ILI9341_Rotate(TM_ILI9341_Orientation_Landscape_1);
+	/* Put string with black foreground color and blue background with 11x18px font */
+	TM_ILI9341_Puts(120, 03, "Sensor's", &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_BLUE2);
+	BackGround = ILI9341_COLOR_BROWN;
 	
 	 /* Initialize BMP180 pressure sensor */
     if (TM_BMP180_Init(&BMP180_Data) == TM_BMP180_Result_Ok) {
@@ -159,8 +137,7 @@ int main(void) {
        // TM_USART_Puts(USART1, "BMP180 configured and ready to use\n\n");
     } else {
         /* Device error */
-       // TM_USART_Puts(USART1, "BMP180 error\n\n");
-        while (1);
+       	TM_ILI9341_Puts(120, 20, "Error init BMP180", &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_RED);
     }
 	
 	
@@ -169,9 +146,6 @@ int main(void) {
 	if (TM_EXTI_Attach(GPIOA, GPIO_Pin_15, TM_EXTI_Trigger_Falling) == TM_EXTI_Result_Ok) {
 		TM_DISCO_LedOn(LED_RED);
 	} 
-	
-	Init_CE_Gpio();
-	
 
 	
 	/* Initialize NRF24L01+ on channel 15 and 32bytes of payload */
@@ -191,29 +165,18 @@ int main(void) {
 	if (TM_L3GD20_Init(TM_L3GD20_Scale_250) == TM_L3GD20_Result_Ok)
 	TM_DISCO_LedOff(LED_GREEN | LED_RED);
 		
-	TM_ILI9341_Init();
-	TM_ILI9341_Fill(ILI9341_COLOR_BROWN);
-	TM_ILI9341_Rotate(TM_ILI9341_Orientation_Landscape_1);
-	/* Put string with black foreground color and blue background with 11x18px font */
-	TM_ILI9341_Puts(120, 03, "Sensor's", &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_BLUE2);
-	BackGround = ILI9341_COLOR_BROWN;
-	
+
 	if(TM_STMPE811_Init() == TM_STMPE811_State_Ok)
 		{
-			temp = TM_I2C_Read(STMPE811_I2C, 0x9F, 0x00);
+			TM_I2C_Read(STMPE811_I2C, 0x9F, 0x00);
 			TM_I2C_Write(STMPE811_I2C, STMPE811_ADDRESS, STMPE811_INT_CTRL, 0x03);
 			TM_I2C_Write(STMPE811_I2C, STMPE811_ADDRESS, STMPE811_INT_STA, 0x01);
 			TM_I2C_Write(STMPE811_I2C, STMPE811_ADDRESS, STMPE811_INT_EN, 0x01);	
-				flag = 0;
-			temp = TM_I2C_Read(STMPE811_I2C, STMPE811_ADDRESS, STMPE811_INT_EN);
-			sprintf(buffer, "%d", temp);
-			TM_ILI9341_Puts(10, 10, buffer, &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_BLUE2);
 		};
-
 		
 		
 	
-	//create thread for taken touch sensor data. it will be susspend after all
+//create thread for taken touch sensor data. it will be susspend after all
 //	osThreadDef(TouchThread, TouchThread, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
 //  xTouchThread = osThreadCreate (osThread(TouchThread), NULL);
 		
@@ -346,26 +309,24 @@ int main(void) {
 
 static void TouchThread(void const * argument)
 {
-	uint8_t count = 0;
-	
 
 		for(;;)
 			{
-					while (TM_STMPE811_ReadTouch(&Coord_811) != TM_STMPE811_State_Pressed)
-						osDelay(5);
+			//waiting for press
+			while (TM_STMPE811_ReadTouch(&Coord_811) != TM_STMPE811_State_Pressed)
+				osDelay(5); 
 					
 			/* Draw pixel on touch location */
 			TM_ILI9341_DrawCircle(Coord_811.y,(ILI9341_WIDTH - Coord_811.x), 2, ILI9341_COLOR_GREEN);
 
 				
-				/* Touch valid */
-				sprintf(buffer, "X: %03d  Y: %03d", Coord_811.x, Coord_811.y);
-				TM_ILI9341_Puts(20, 80, buffer, &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_ORANGE);
-					
-					while (TM_STMPE811_ReadTouch(&Coord_811) != TM_STMPE811_State_Released)
-						osDelay(50);
+			/* Touch valid */
+			sprintf(buffer, "X: %03d  Y: %03d", Coord_811.x, Coord_811.y);
+			TM_ILI9341_Puts(20, 80, buffer, &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_ORANGE);
 				
-		
+			// waiting for released
+			while (TM_STMPE811_ReadTouch(&Coord_811) != TM_STMPE811_State_Released)
+				osDelay(50);
 			}
 		
 		vTaskDelete( NULL );
@@ -388,6 +349,7 @@ static void StartThread(void const * argument)
 //		osDelayUntil(xLastWakeTime, 1000);
   }
 
+	vTaskDelete( NULL );
 }
 
 
@@ -488,7 +450,8 @@ static void SDCardThread(void const * argument)
 		TM_DISCO_LedOff(LED_RED);
    	osDelay(5000); 
   }
-
+	
+		vTaskDelete( NULL );
 }
 
 
@@ -496,11 +459,6 @@ static void SDCardThread(void const * argument)
 static void SensorsThread(void const * argument)
 {
 	uint8_t tempr[2];
-
-	
-	MPL115_Init();
-
-	MPL115_Read_coef(&Coef);
 	
 	osDelay(1900);
  
@@ -529,53 +487,41 @@ static void SensorsThread(void const * argument)
         TM_BMP180_ReadPressure(&BMP180_Data);
         
         /* Format data and print to USART */
-        sprintf(buffer, "T: %2.3f degrees\nPr: %6d P\nAlt: %3.2f m\n",
+        sprintf(buffer, "T = %2.3f *C  Pr: %6d P   Alt: %3.2f m",
             BMP180_Data.Temperature,
             BMP180_Data.Pressure,
             BMP180_Data.Altitude
         );
 			TM_ILI9341_Puts(10, 30, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 			
-			MPL115_Start_Conversion();
-		
-			osDelay(2);
-		
-			MPL115_Read_Data(&MPL_Data);
-		
-			temp_f = MPL115A1_calc_pressure(&Coef, &MPL_Data);
-		
-			TM_I2C_ReadMulti(STMPE811_I2C, 0x9F, 0x00, tempr, 2);
+	
+			TM_I2C_ReadMulti(STMPE811_I2C, 0x9F, 0x00, tempr, 2); // Read temperature from LM75
 			real_tempr = (float)tempr[0] + 0.125*(tempr[1]>>5);
+			
+			sprintf(buffer, "T_LM75 = %.3f", real_tempr);
+			TM_ILI9341_Puts(10, 40, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_GREEN);
 		
-			/* Read data */
+/* Read acceleration data */
       TM_L3GD20_Read(&L3GD20_Data);
 			temp_f = sqrt(L3GD20_Data.X*L3GD20_Data.X + L3GD20_Data.Y*L3GD20_Data.Y + L3GD20_Data.Z*L3GD20_Data.Z);
-		
-/* Display data on LCD */
-				
-//        sprintf(buffer, "X rotation: %4d", L3GD20_Data.X);
-//        TM_ILI9341_Puts(10, 40, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
-//        sprintf(buffer, "Y rotation: %4d", L3GD20_Data.Y);
-//        TM_ILI9341_Puts(10, 60, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
-//        sprintf(buffer, "Z rotation: %4d", L3GD20_Data.Z);
-//        TM_ILI9341_Puts(10, 80, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
-//			  sprintf(buffer, "Mod rotation: %.3f", temp_f);
-//        TM_ILI9341_Puts(10, 100, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_BLUE);
-			
 			if (maximum_rotation < temp_f)
-				maximum_rotation = temp_f; 
-			sprintf(buffer, "MAX rotation: %f", maximum_rotation);
-      TM_ILI9341_Puts(10, 120, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_BLUE);
+			maximum_rotation = temp_f;
+				
+      sprintf(buffer, "X = %4d, Y = %4d, Z = %4d", L3GD20_Data.X, L3GD20_Data.Y, L3GD20_Data.Z);
+      TM_ILI9341_Puts(10, 60, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 
-			sprintf(buffer, "Temperature: %.3f", real_tempr);
-			TM_ILI9341_Puts(10, 200, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_GREEN);			
+			sprintf(buffer, "M = %.3f, MAX = %.3f", temp_f, maximum_rotation);
+      TM_ILI9341_Puts(10, 80, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_BLUE);
 
 			if (TM_DISCO_ButtonPressed()) maximum_rotation = 0;
-		
 						
 		osDelay(300);
 	}
+	
+		vTaskDelete( NULL );
 }
+
+
 
 void Init_CE_Gpio(void)
 {
