@@ -347,7 +347,21 @@ static void StartThread(void const * argument)
 
   for(;;)
   {
-    		 		  
+    
+		if( xMutex_LCD != NULL ) // Reset LCD screen in 1 second
+			{
+        // See if we can obtain the semaphore.  If the semaphore is not available
+        // wait 10 ticks to see if it becomes free.	
+        if( xSemaphoreTake( xMutex_LCD, ( portTickType ) 50 ) == pdTRUE )
+        {
+            // We were able to obtain the semaphore and can now access the shared resource.
+            TM_ILI9341_Fill(ILI9341_COLOR_BROWN);
+											
+            // We have finished accessing the shared resource.  Release the semaphore.
+            xSemaphoreGive( xMutex_LCD );
+        }
+			}
+			
    	GPIO_ToggleBits(GPIOG, GPIO_Pin_13);
 		
 		if( xMutex_LCD != NULL )
@@ -358,7 +372,7 @@ static void StartThread(void const * argument)
         {
             // We were able to obtain the semaphore and can now access the shared resource.
             sprintf(buffer, "System works good");
-						TM_ILI9341_Puts(20, 80, buffer, &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_ORANGE);
+						TM_ILI9341_Puts(10, 160, buffer, &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_ORANGE);
 					
             // We have finished accessing the shared resource.  Release the semaphore.
             xSemaphoreGive( xMutex_LCD );
@@ -485,6 +499,7 @@ static void SensorsThread(void const * argument)
 {
 	uint8_t tempr[2];
 	uint16_t  ADC_Value;
+	uint16_t BMP180_Oversampling;
 	
 	osDelay(1900);
  
@@ -501,13 +516,21 @@ static void SensorsThread(void const * argument)
         
         /* Read temperature first */
         TM_BMP180_ReadTemperature(&BMP180_Data);
+		
+				BMP180_Oversampling = TM_BMP180_Oversampling_UltraHighResolution;
         
         /* Start pressure conversion at ultra high resolution */
-        TM_BMP180_StartPressure(&BMP180_Data, TM_BMP180_Oversampling_UltraHighResolution);
+        TM_BMP180_StartPressure(&BMP180_Data, BMP180_Oversampling);
         
         /* Wait delay in microseconds */
         /* You can do other things here instead of delay */
-        osDelay(5);
+        if (BMP180_Oversampling == TM_BMP180_Oversampling_UltraLowPower)
+					osDelay(5);
+				else if (BMP180_Oversampling == TM_BMP180_Oversampling_Standard)
+					osDelay(8);
+				else if (BMP180_Oversampling == TM_BMP180_Oversampling_HighResolution)
+					osDelay(14);
+				else	osDelay(26);
         
         /* Read pressure value */
         TM_BMP180_ReadPressure(&BMP180_Data);
@@ -520,8 +543,8 @@ static void SensorsThread(void const * argument)
         if( xSemaphoreTake( xMutex_LCD, ( portTickType ) 50 ) == pdTRUE )
         {
             // We were able to obtain the semaphore and can now access the shared resource.
-						sprintf(buffer, "T = %2.3f *C  Pr: %6d P   Alt: %3.2f m", BMP180_Data.Temperature, BMP180_Data.Pressure, BMP180_Data.Altitude);
-						TM_ILI9341_Puts(10, 30, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
+						sprintf(buffer, "T=%2.3f Pr=%6d A=%3.2f", BMP180_Data.Temperature, BMP180_Data.Pressure, BMP180_Data.Altitude);
+						TM_ILI9341_Puts(10, 40, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 					
             // We have finished accessing the shared resource.  Release the semaphore.
             xSemaphoreGive( xMutex_LCD );
@@ -549,8 +572,7 @@ static void SensorsThread(void const * argument)
                 datatime.seconds,
                 ADC_Value
     );
-    //Send to USART
-    TM_ILI9341_Puts(10, 150, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
+    TM_ILI9341_Puts(10, 180, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 	
 		TM_I2C_ReadMulti(STMPE811_I2C, 0x9F, 0x00, tempr, 2); // Read temperature from LM75
 		real_tempr = (float)tempr[0] + 0.125*(tempr[1]>>5);
@@ -563,7 +585,7 @@ static void SensorsThread(void const * argument)
         {
             // We were able to obtain the semaphore and can now access the shared resource.
 						sprintf(buffer, "T_LM75 = %.3f", real_tempr);
-						TM_ILI9341_Puts(10, 40, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_GREEN);
+						TM_ILI9341_Puts(10, 60, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_GREEN);
 					
             // We have finished accessing the shared resource.  Release the semaphore.
             xSemaphoreGive( xMutex_LCD );
@@ -591,10 +613,10 @@ static void SensorsThread(void const * argument)
         {
             // We were able to obtain the semaphore and can now access the shared resource.
 							sprintf(buffer, "X = %4d, Y = %4d, Z = %4d", L3GD20_Data.X, L3GD20_Data.Y, L3GD20_Data.Z);
-							TM_ILI9341_Puts(10, 60, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
+							TM_ILI9341_Puts(10, 80, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 
 							sprintf(buffer, "M = %.3f, MAX = %.3f", temp_f, maximum_rotation);
-							TM_ILI9341_Puts(10, 80, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_BLUE);
+							TM_ILI9341_Puts(10, 100, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_BLUE);
 					
             // We have finished accessing the shared resource.  Release the semaphore.
             xSemaphoreGive( xMutex_LCD );
