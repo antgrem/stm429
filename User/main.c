@@ -38,7 +38,7 @@ void Init_CE_Gpio(void);
 	TM_BMP180_t BMP180_Data;
 	
 	xTaskHandle xTouchThread;
-	xSemaphoreHandle  xSemaphore_LCD, xMutex_LCD;
+	xSemaphoreHandle  xMutex_LCD, xWatt_1_sec_measure;
 	
 	
 		/* Fatfs object */
@@ -71,10 +71,17 @@ uint32_t BackGround;
 TM_RTC_t datatime;
 TM_RTC_AlarmTime_t AlarmTime;
 
+//Array for WattMeasuring
+uint16_t Watt[17280][2]; 
+uint16_t Count_Array_Watt;
+#define MAX_COUNT_ARRAY_WATT 17279
+
 int main(void) {
 	
 	/* Initialize system */
 	SystemInit();
+	
+	Count_Array_Watt = 0;
 	
 	/* Initialize system and Delay functions */
 	TM_DELAY_Init();
@@ -177,10 +184,11 @@ int main(void) {
 		
 
 
-		xSemaphore_LCD = xSemaphoreCreateBinary();
+
 		xMutex_LCD = xSemaphoreCreateMutex();
+		xWatt_1_sec_measure = xSemaphoreCreateBinary();
 		
-		if ((xSemaphore_LCD == NULL) || (xMutex_LCD == NULL))	
+		if ((xMutex_LCD == NULL) || (xWatt_1_sec_measure == NULL))	
 			while(1); //Error creation Semaphore
 	
 //create thread for taken touch sensor data. it will be susspend after all
@@ -342,6 +350,8 @@ static void StartThread(void const * argument)
 {
 //Thread show all works good
 	portTickType xLastWakeTime;
+	uint16_t  ADC_Value;
+	uint16_t	time_temp;
 	
 	xLastWakeTime = xTaskGetTickCount();
 
@@ -364,25 +374,56 @@ static void StartThread(void const * argument)
 			
    	GPIO_ToggleBits(GPIOG, GPIO_Pin_13);
 		
-		if( xMutex_LCD != NULL )
+//		if( xMutex_LCD != NULL )
+//			{
+//        // See if we can obtain the semaphore.  If the semaphore is not available
+//        // wait 10 ticks to see if it becomes free.	
+//        if( xSemaphoreTake( xMutex_LCD, ( portTickType ) 50 ) == pdTRUE )
+//        {
+//            // We were able to obtain the semaphore and can now access the shared resource.
+//            sprintf(buffer, "System works good");
+//						TM_ILI9341_Puts(10, 160, buffer, &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_ORANGE);
+//					
+//            // We have finished accessing the shared resource.  Release the semaphore.
+//            xSemaphoreGive( xMutex_LCD );
+//        }
+//        else
+//        {
+//            // We could not obtain the semaphore and can therefore not access
+//            // the shared resource safely.
+//        }
+//			}
+			
+				//Get time
+  TM_RTC_GetDateTime(&datatime, TM_RTC_Format_BIN);
+	
+	time_temp = (((datatime.hours & 0x0F)<<11) & ((datatime.minutes & 0x3F)<<6) & (datatime.seconds));
+	//Read ADC1 channel 13
+	ADC_Value = TM_ADC_Read(ADC1, ADC_Channel_13);
+	
+	Watt[Count_Array_Watt][0] = time_temp;
+	Watt[Count_Array_Watt][1] = ADC_Value;
+
+	if (++Count_Array_Watt > MAX_COUNT_ARRAY_WATT) Count_Array_Watt = 0;
+			
+	if( xMutex_LCD != NULL )
+		{
+			// See if we can obtain the semaphore.  If the semaphore is not available
+			// wait 10 ticks to see if it becomes free.	
+			if( xSemaphoreTake( xMutex_LCD, ( portTickType ) 50 ) == pdTRUE )
 			{
-        // See if we can obtain the semaphore.  If the semaphore is not available
-        // wait 10 ticks to see if it becomes free.	
-        if( xSemaphoreTake( xMutex_LCD, ( portTickType ) 50 ) == pdTRUE )
-        {
-            // We were able to obtain the semaphore and can now access the shared resource.
-            sprintf(buffer, "System works good");
-						TM_ILI9341_Puts(10, 160, buffer, &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_ORANGE);
-					
-            // We have finished accessing the shared resource.  Release the semaphore.
-            xSemaphoreGive( xMutex_LCD );
-        }
-        else
-        {
-            // We could not obtain the semaphore and can therefore not access
-            // the shared resource safely.
-        }
+					// We were able to obtain the semaphore and can now access the shared resource.
+					datatime.hours = (time_temp & 0xF000)>>12;
+					datatime.minutes = (time_temp & 0x0FC0)>>6;
+					datatime.seconds = (time_temp & 0x3F);
+				
+					sprintf(buffer, "%02d:%02d:%02d  ADC: %u\n", datatime.hours, datatime.minutes, datatime.seconds, ADC_Value);
+					TM_ILI9341_Puts(10, 180, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
+				
+					// We have finished accessing the shared resource.  Release the semaphore.
+					xSemaphoreGive( xMutex_LCD );
 			}
+		}
 		
 		osDelay(1000);
 //		osDelayUntil(xLastWakeTime, 1000);
@@ -562,17 +603,24 @@ static void SensorsThread(void const * argument)
 	//Read ADC1 channel 13
 	ADC_Value = TM_ADC_Read(ADC1, ADC_Channel_13);
     
-    //Format time
-    sprintf(buffer, "%02d.%02d.%04d %02d:%02d:%02d  ADC: %u\n",
-                datatime.date,
-                datatime.month,
-                datatime.year + 2000,
-                datatime.hours,
-                datatime.minutes,
-                datatime.seconds,
-                ADC_Value
-    );
-    TM_ILI9341_Puts(10, 180, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
+    
+    
+			
+		if( xMutex_LCD != NULL )
+		{
+			// See if we can obtain the semaphore.  If the semaphore is not available
+			// wait 10 ticks to see if it becomes free.	
+			if( xSemaphoreTake( xMutex_LCD, ( portTickType ) 50 ) == pdTRUE )
+			{
+					// We were able to obtain the semaphore and can now access the shared resource.
+					//Format time
+					sprintf(buffer, "%02d.%02d.%04d %02d:%02d:%02d  ADC: %u\n", datatime.date, datatime.month, datatime.year + 2000, datatime.hours, datatime.minutes, datatime.seconds, ADC_Value);
+					TM_ILI9341_Puts(10, 180, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
+				
+					// We have finished accessing the shared resource.  Release the semaphore.
+					xSemaphoreGive( xMutex_LCD );
+			}
+		}
 	
 		TM_I2C_ReadMulti(STMPE811_I2C, 0x9F, 0x00, tempr, 2); // Read temperature from LM75
 		real_tempr = (float)tempr[0] + 0.125*(tempr[1]>>5);
@@ -651,8 +699,8 @@ void Init_CE_Gpio(void)
   GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
   GPIO_Init(GPIOD, &GPIO_InitStructure);
 	
-  GPIO_SetBits(GPIOD, GPIO_Pin_7);
-	GPIO_SetBits(GPIOD, GPIO_Pin_5);
+  GPIO_SetBits(GPIOD, GPIO_Pin_7);// CE for MPL115A1
+	GPIO_SetBits(GPIOD, GPIO_Pin_5);// CSN for NRF24L01
 
 }
 
