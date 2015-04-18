@@ -39,6 +39,7 @@ void Init_CE_Gpio(void);
 	
 	xTaskHandle xTouchThread;
 	xSemaphoreHandle  xMutex_LCD, xWatt_1_sec_measure;
+	xSemaphoreHandle  xSDcard_write, xSDcard_written_done;
 	
 	
 		/* Fatfs object */
@@ -99,12 +100,12 @@ int main(void) {
     if (!TM_RTC_Init(TM_RTC_ClockSource_Internal)) {
         //RTC was first time initialized
         //set new time
-				datatime.hours = 0;
-        datatime.minutes = 59;
+				datatime.hours = 14;
+        datatime.minutes = 35;
         datatime.seconds = 45;
         datatime.year = 15;
         datatime.month = 4;
-        datatime.date = 9;
+        datatime.date = 18;
         datatime.day = 6;
 			//Set new time
         TM_RTC_SetDateTime(&datatime, TM_RTC_Format_BIN);
@@ -113,16 +114,16 @@ int main(void) {
     //Set wakeup interrupt every 1 second
     TM_RTC_Interrupts(TM_RTC_Int_1s);
 	
-			/* Set alarm A each day 1 (Monday) in a week */
-            /* Alarm will be first triggered 5 seconds later as time is configured for RTC */
-            AlarmTime.hours = datatime.hours;
-            AlarmTime.minutes = datatime.minutes;
-            AlarmTime.seconds = datatime.seconds + 5;
-            AlarmTime.alarmtype = TM_RTC_AlarmType_DayInWeek;
-            AlarmTime.day = 1;
-            
-            /* Set RTC alarm A, time in binary format */
-            TM_RTC_SetAlarm(TM_RTC_Alarm_A, &AlarmTime, TM_RTC_Format_BIN);
+//			/* Set alarm A each day 1 (Monday) in a week */
+//            /* Alarm will be first triggered 5 seconds later as time is configured for RTC */
+//            AlarmTime.hours = datatime.hours;
+//            AlarmTime.minutes = datatime.minutes;
+//            AlarmTime.seconds = datatime.seconds + 5;
+//            AlarmTime.alarmtype = TM_RTC_AlarmType_DayInWeek;
+//            AlarmTime.day = 1;
+//            
+//            /* Set RTC alarm A, time in binary format */
+//            TM_RTC_SetAlarm(TM_RTC_Alarm_A, &AlarmTime, TM_RTC_Format_BIN);
 			
 			
 	 /* Write data to backup register 4 */
@@ -187,20 +188,25 @@ int main(void) {
 
 		xMutex_LCD = xSemaphoreCreateMutex();
 		xWatt_1_sec_measure = xSemaphoreCreateBinary();
+		xSDcard_write =  xSemaphoreCreateBinary();
+		xSDcard_written_done = xSemaphoreCreateBinary();
 		
-		if ((xMutex_LCD == NULL) || (xWatt_1_sec_measure == NULL))	
+		if ((xMutex_LCD == NULL) || (xWatt_1_sec_measure == NULL) || (xSDcard_write == NULL))	
 			while(1); //Error creation Semaphore
+		
+		if (xSDcard_written_done == NULL)
+			while(1);
 	
 //create thread for taken touch sensor data. it will be susspend after all
 //	osThreadDef(TouchThread, TouchThread, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
 //  xTouchThread = osThreadCreate (osThread(TouchThread), NULL);
 		
 		
-	osThreadDef(SensorsThread, SensorsThread, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
-  osThreadCreate (osThread(SensorsThread), NULL);
+//	osThreadDef(SensorsThread, SensorsThread, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
+//  osThreadCreate (osThread(SensorsThread), NULL);
 	
-//	osThreadDef(SD_Thread, SDCardThread, osPriorityAboveNormal, 0, configMINIMAL_STACK_SIZE);
-//  osThreadCreate (osThread(SD_Thread), NULL);	
+	osThreadDef(SD_Thread, SDCardThread, osPriorityAboveNormal, 0, configMINIMAL_STACK_SIZE);
+  osThreadCreate (osThread(SD_Thread), NULL);	
 
   /* Create Start thread */
   osThreadDef(USER_Thread, StartThread, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
@@ -397,14 +403,22 @@ static void StartThread(void const * argument)
 				//Get time
   TM_RTC_GetDateTime(&datatime, TM_RTC_Format_BIN);
 	
-	time_temp = (((datatime.hours & 0x0F)<<11) | ((datatime.minutes & 0x3F)<<6) | (datatime.seconds));
+	if (datatime.hours >= 13) datatime.hours -= 12;
+	
+	time_temp = (((datatime.hours & 0x0F)<<12) | ((datatime.minutes & 0x3F)<<6) | (datatime.seconds));
 	//Read ADC1 channel 13
 	ADC_Value = TM_ADC_Read(ADC1, ADC_Channel_13);
 	
 	Watt[Count_Array_Watt][0] = time_temp;
 	Watt[Count_Array_Watt][1] = ADC_Value;
 
-	if (++Count_Array_Watt > MAX_COUNT_ARRAY_WATT) Count_Array_Watt = 0;
+	if (++Count_Array_Watt > MAX_COUNT_ARRAY_WATT)
+	{
+		xSemaphoreGive(xSDcard_write);
+	  xSemaphoreTake(xSDcard_written_done, portMAX_DELAY);
+		Count_Array_Watt = 0;
+	}
+	
 			
 	if( xMutex_LCD != NULL )
 		{
@@ -417,7 +431,7 @@ static void StartThread(void const * argument)
 					datatime.minutes = (time_temp & 0x0FC0)>>6;
 					datatime.seconds = (time_temp & 0x3F);
 				
-					sprintf(buffer, "%02d:%02d:%02d  ADC: %u\n", datatime.hours, datatime.minutes, datatime.seconds, ADC_Value);
+					sprintf(buffer, "%02d:%02d:%02d i=%u ADC=%u", datatime.hours, datatime.minutes, datatime.seconds, Count_Array_Watt, ADC_Value);
 					TM_ILI9341_Puts(10, 140, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 				
 					// We have finished accessing the shared resource.  Release the semaphore.
@@ -438,62 +452,63 @@ static void SDCardThread(void const * argument)
 	//thread for work with CD_Card by SPI4
 	FRESULT temp_sd_res;
 	uint16_t time=0;
+	uint32_t i;
 
-	if (f_mount(&FatFs, "0:", 1) == FR_OK) {
-		/* Mounted OK, turn on RED LED */
-			TM_DISCO_LedOn(LED_RED);	
-				
-		temp_sd_res = f_open(&fil, "0:Tempr.txt", FA_OPEN_EXISTING | FA_READ | FA_WRITE);
-		if (temp_sd_res != FR_OK) 
-			{
-				if (f_open(&fil, "0:Tempr.txt", FA_CREATE_NEW | FA_READ | FA_WRITE) == FR_OK)
-					{//write redline
-						sprintf(buffer, "Numb\tTemp\tX\tY\tZ\n");
-						if(f_lseek(&fil, f_size(&fil)) == FR_OK){};
-							
-							/* If we put more than 0 characters (everything OK) */
-							if (f_puts(buffer, &fil) > 0) {
-								if (TM_FATFS_DriveSize(&total, &free) == FR_OK) {
-									/* Data for drive size are valid */
-									/* Close file, don't forget this! */
-									f_close(&fil);
-								}
-					}
-				}
-			
-				}
-			else
-			{
-				//file existing and open
-								sprintf(buffer, "------------------------\n");
-								if(f_lseek(&fil, f_size(&fil)) == FR_OK){};
-									
-									/* If we put more than 0 characters (everything OK) */
-									if (f_puts(buffer, &fil) > 0) 
-										{
-											if (TM_FATFS_DriveSize(&total, &free) == FR_OK) {
-												/* Data for drive size are valid */
-												/* Close file, don't forget this! */
-												
-											}
-										}
-					f_close(&fil);
-				}
-			
-//				sprintf(buffer, "0:Hello.txt");	
-//			if (f_open(&fil, buffer, FA_CREATE_ALWAYS | FA_READ | FA_WRITE) == FR_OK)
-//				{
+//	if (f_mount(&FatFs, "0:", 1) == FR_OK) {
+//		/* Mounted OK, turn on RED LED */
+//			TM_DISCO_LedOn(LED_RED);	
+//				
+//		temp_sd_res = f_open(&fil, "0:Tempr.txt", FA_OPEN_EXISTING | FA_READ | FA_WRITE);
+//		if (temp_sd_res != FR_OK) 
+//			{
+//				if (f_open(&fil, "0:Tempr.txt", FA_CREATE_NEW | FA_READ | FA_WRITE) == FR_OK)
+//					{//write redline
+//						sprintf(buffer, "Numb\tTemp\tX\tY\tZ\n");
+//						if(f_lseek(&fil, f_size(&fil)) == FR_OK){};
+//							
+//							/* If we put more than 0 characters (everything OK) */
+//							if (f_puts(buffer, &fil) > 0) {
+//								if (TM_FATFS_DriveSize(&total, &free) == FR_OK) {
+//									/* Data for drive size are valid */
+//									/* Close file, don't forget this! */
+//									f_close(&fil);
+//								}
+//					}
+//				}
+//			
+//				}
+//			else
+//			{
+//				//file existing and open
+//								sprintf(buffer, "------------------------\n");
+//								if(f_lseek(&fil, f_size(&fil)) == FR_OK){};
+//									
+//									/* If we put more than 0 characters (everything OK) */
+//									if (f_puts(buffer, &fil) > 0) 
+//										{
+//											if (TM_FATFS_DriveSize(&total, &free) == FR_OK) {
+//												/* Data for drive size are valid */
+//												/* Close file, don't forget this! */
+//												
+//											}
+//										}
 //					f_close(&fil);
 //				}
-				
-				/* Unmount drive, don't forget this! */
-				f_mount(0, "0:", 1);
-				
-			}
+//			
+////				sprintf(buffer, "0:Hello.txt");	
+////			if (f_open(&fil, buffer, FA_CREATE_ALWAYS | FA_READ | FA_WRITE) == FR_OK)
+////				{
+////					f_close(&fil);
+////				}
+//				
+//				/* Unmount drive, don't forget this! */
+//				f_mount(0, "0:", 1);
+//				
+//			}
 	
   for(;;)
   {
-		
+		xSemaphoreTake(xSDcard_write, portMAX_DELAY);
 		
 		if (f_mount(&FatFs, "0:", 1) == FR_OK) {
 				/* Mounted OK, turn on RED LED */
@@ -502,23 +517,30 @@ static void SDCardThread(void const * argument)
 				/* Try to open file */
 				if (f_open(&fil, "0:Tempr.txt", FA_OPEN_ALWAYS | FA_READ | FA_WRITE) == FR_OK) {
 					/* File opened, turn off RED and turn on GREEN led */
-			//		TM_DISCO_LedOn(LED_GREEN);
-			//		TM_DISCO_LedOff(LED_RED);
-					
-					
-					sprintf(buffer, "%d\t%.3f\t%d\t%d\t%d\n", time++, real_tempr, L3GD20_Data.X, L3GD20_Data.Y, L3GD20_Data.Z);
-					if(f_lseek(&fil, f_size(&fil)) == FR_OK){};
-					
-					/* If we put more than 0 characters (everything OK) */
-					if (f_puts(buffer, &fil) > 0) {
-						if (TM_FATFS_DriveSize(&total, &free) == FR_OK) {
-							/* Data for drive size are valid */
+			
+					for (i=0; i<MAX_COUNT_ARRAY_WATT; i++)
+						{
+							// We were able to obtain the semaphore and can now access the shared resource.
+							datatime.hours = (Watt[i][0] & 0xF000)>>12;
+							datatime.minutes = (Watt[i][0] & 0x0FC0)>>6;
+							datatime.seconds = (Watt[i][0] & 0x3F);
+							sprintf(buffer, "%02d:%02d:%02d\t%u\t%u\n", datatime.hours, datatime.minutes, datatime.seconds, i, Watt[i][1]);
+							if(f_lseek(&fil, f_size(&fil)) == FR_OK){};
 							
+							/* If we put more than 0 characters (everything OK) */
+							if (f_puts(buffer, &fil) > 0) {
+								if (TM_FATFS_DriveSize(&total, &free) == FR_OK) {
+									/* Data for drive size are valid */
+									
+								}
+								
+								/* Turn on both leds */
+					//			TM_DISCO_LedOn(LED_GREEN | LED_RED);
+							}
 						}
-						
-						/* Turn on both leds */
-			//			TM_DISCO_LedOn(LED_GREEN | LED_RED);
-					}
+					
+					
+
 					
 					/* Close file, don't forget this! */
 					f_close(&fil);
@@ -527,9 +549,8 @@ static void SDCardThread(void const * argument)
 				/* Unmount drive, don't forget this! */
 				f_mount(0, "0:", 1);
 			}	
-		TM_DISCO_LedOff(LED_RED);
-   	osDelay(5000); 
-  }
+		xSemaphoreGive(xSDcard_written_done);
+}
 	
 		vTaskDelete( NULL );
 }
