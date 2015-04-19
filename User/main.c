@@ -73,9 +73,9 @@ TM_RTC_t datatime;
 TM_RTC_AlarmTime_t AlarmTime;
 
 //Array for WattMeasuring
-uint16_t Watt[17280][2]; 
+#define MAX_COUNT_ARRAY_WATT 1799
+uint16_t Watt[MAX_COUNT_ARRAY_WATT+1][4]; 
 uint16_t Count_Array_Watt;
-#define MAX_COUNT_ARRAY_WATT 17279
 
 int main(void) {
 	
@@ -97,16 +97,16 @@ int main(void) {
 	
     //Initialize RTC with internal 32768Hz clock
     //It's not very accurate
-    if (!TM_RTC_Init(TM_RTC_ClockSource_Internal)) {
+    if (!TM_RTC_Init(TM_RTC_ClockSource_External)) {
         //RTC was first time initialized
         //set new time
-				datatime.hours = 14;
-        datatime.minutes = 35;
-        datatime.seconds = 45;
+				datatime.hours = 18;
+        datatime.minutes = 48;
+        datatime.seconds = 00;
         datatime.year = 15;
         datatime.month = 4;
-        datatime.date = 18;
-        datatime.day = 6;
+        datatime.date = 19;
+        datatime.day = 7;
 			//Set new time
         TM_RTC_SetDateTime(&datatime, TM_RTC_Format_BIN);
     }
@@ -139,6 +139,8 @@ int main(void) {
 	/* Put string with black foreground color and blue background with 11x18px font */
 	TM_ILI9341_Puts(120, 03, "Sensor's", &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_BLUE2);
 	BackGround = ILI9341_COLOR_BROWN;
+	
+	TM_ADC_Read(ADC1, ADC_Channel_13);
 	
 	 /* Initialize BMP180 pressure sensor */
     if (TM_BMP180_Init(&BMP180_Data) == TM_BMP180_Result_Ok) {
@@ -356,10 +358,13 @@ static void StartThread(void const * argument)
 {
 //Thread show all works good
 	portTickType xLastWakeTime;
-	uint16_t  ADC_Value;
+	uint16_t  ADC_Value, Max_ADC;
 	uint16_t	time_temp;
+	uint8_t tempr[2];
+	TM_BMP180_Oversampling_t BMP180_Oversampling;
 	
 	xLastWakeTime = xTaskGetTickCount();
+	Max_ADC = 0;
 
   for(;;)
   {
@@ -408,15 +413,50 @@ static void StartThread(void const * argument)
 	time_temp = (((datatime.hours & 0x0F)<<12) | ((datatime.minutes & 0x3F)<<6) | (datatime.seconds));
 	//Read ADC1 channel 13
 	ADC_Value = TM_ADC_Read(ADC1, ADC_Channel_13);
+	TM_I2C_ReadMulti(STMPE811_I2C, 0x9F, 0x00, tempr, 2); // Read temperature from LM75
+	real_tempr = (float)tempr[0] + 0.125*(tempr[1]>>5);
+
+	/* Start temperature conversion */
+		TM_BMP180_StartTemperature(&BMP180_Data);
+		
+		/* Wait delay in microseconds */
+		/* You can do other things here instead of delay */
+		osDelay(5);
+		
+		/* Read temperature first */
+		TM_BMP180_ReadTemperature(&BMP180_Data);
+
+		BMP180_Oversampling = TM_BMP180_Oversampling_HighResolution;
+		
+		/* Start pressure conversion at ultra high resolution */
+		TM_BMP180_StartPressure(&BMP180_Data, BMP180_Oversampling);
+		
+		/* Wait delay in microseconds */
+		/* You can do other things here instead of delay */
+		if (BMP180_Oversampling == TM_BMP180_Oversampling_UltraLowPower)
+			osDelay(5);
+		else if (BMP180_Oversampling == TM_BMP180_Oversampling_Standard)
+			osDelay(8);
+		else if (BMP180_Oversampling == TM_BMP180_Oversampling_HighResolution)
+			osDelay(14);
+		else	osDelay(26);
+		
+		/* Read pressure value */
+		TM_BMP180_ReadPressure(&BMP180_Data);
 	
 	Watt[Count_Array_Watt][0] = time_temp;
 	Watt[Count_Array_Watt][1] = ADC_Value;
+	Watt[Count_Array_Watt][2] = real_tempr;
+	Watt[Count_Array_Watt][3] = BMP180_Data.Pressure;
+		
+	Max_ADC = (Max_ADC < ADC_Value) ? ADC_Value : Max_ADC;
 
 	if (++Count_Array_Watt > MAX_COUNT_ARRAY_WATT)
 	{
 		xSemaphoreGive(xSDcard_write);
 	  xSemaphoreTake(xSDcard_written_done, portMAX_DELAY);
 		Count_Array_Watt = 0;
+		Max_ADC = 0;
 	}
 	
 			
@@ -430,14 +470,20 @@ static void StartThread(void const * argument)
 					datatime.hours = (time_temp & 0xF000)>>12;
 					datatime.minutes = (time_temp & 0x0FC0)>>6;
 					datatime.seconds = (time_temp & 0x3F);
-				
+					
+					sprintf(buffer, "                         ");
+					TM_ILI9341_Puts(10, 140, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
+				  
 					sprintf(buffer, "%02d:%02d:%02d i=%u ADC=%u", datatime.hours, datatime.minutes, datatime.seconds, Count_Array_Watt, ADC_Value);
 					TM_ILI9341_Puts(10, 140, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
-				
-					// We have finished accessing the shared resource.  Release the semaphore.
+				  
+					sprintf(buffer, "Max = %u", Max_ADC);
+					TM_ILI9341_Puts(10, 160, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
+				  // We have finished accessing the shared resource.  Release the semaphore.
 					xSemaphoreGive( xMutex_LCD );
 			}
 		}
+
 		
 		osDelay(1000);
 //		osDelayUntil(xLastWakeTime, 1000);
@@ -524,7 +570,7 @@ static void SDCardThread(void const * argument)
 							datatime.hours = (Watt[i][0] & 0xF000)>>12;
 							datatime.minutes = (Watt[i][0] & 0x0FC0)>>6;
 							datatime.seconds = (Watt[i][0] & 0x3F);
-							sprintf(buffer, "%02d:%02d:%02d\t%u\t%u\n", datatime.hours, datatime.minutes, datatime.seconds, i, Watt[i][1]);
+							sprintf(buffer, "%02d:%02d:%02d\t%u\t%u\t%u\t%u\n", datatime.hours, datatime.minutes, datatime.seconds, i, Watt[i][1], Watt[i][2], Watt[i][3]);
 							if(f_lseek(&fil, f_size(&fil)) == FR_OK){};
 							
 							/* If we put more than 0 characters (everything OK) */
