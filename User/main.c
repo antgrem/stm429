@@ -24,6 +24,7 @@ static void SensorsThread(void const * argument);
 static void SDCardThread(void const * argument);
 static void TouchThread(void const * argument);
 void TM_EXTI_Handler_15(void);
+void Init_Timer_for_SD(void);
 
 void Init_CE_Gpio(void);
 
@@ -93,6 +94,8 @@ int main(void) {
 	TM_DISCO_ButtonInit(); 
 	
 	Init_CE_Gpio();
+	
+	Init_Timer_for_SD();
 	
     //Initialize RTC with internal 32768Hz clock
     //It's not very accurate
@@ -728,5 +731,19 @@ void TM_EXTI_Handler_15(void)
 {
 		TM_I2C_Write(STMPE811_I2C, STMPE811_ADDRESS, STMPE811_INT_STA, 0x01);
 		TM_DISCO_LedToggle(LED_RED);
+}
+
+void Init_Timer_for_SD(void)
+{
+	TIM_TimeBaseInitTypeDef tim;
+	
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM5, ENABLE);
+	
+	TIM_TimeBaseStructInit(&tim);
+	tim.TIM_Prescaler = 84-1; //1MHz
+	tim.TIM_Period = 0x0F4240;//1s
+	TIM_TimeBaseInit(TIM5, &tim);
+	
+	TIM_Cmd(TIM6, ENABLE);	
 }
 

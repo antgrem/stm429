@@ -50,7 +50,7 @@
           <OutputName>FreeRTOS</OutputName>
           <CreateExecutable>1</CreateExecutable>
           <CreateLib>0</CreateLib>
-          <CreateHexFile>0</CreateHexFile>
+          <CreateHexFile>1</CreateHexFile>
           <DebugInformation>1</DebugInformation>
           <BrowseInformation>1</BrowseInformation>
           <ListingPath>.\Listings\</ListingPath>
@@ -395,7 +395,7 @@
             <TextAddressRange>0x08000000</TextAddressRange>
             <DataAddressRange>0x20000000</DataAddressRange>
             <pXoBase></pXoBase>
-            <ScatterFile></ScatterFile>
+            <ScatterFile>.\Objects\FreeRTOS.sct</ScatterFile>
             <IncludeLibs></IncludeLibs>
             <IncludeLibsPath></IncludeLibsPath>
             <Misc></Misc>
@@ -498,6 +498,11 @@
               <FileType>1</FileType>
               <FilePath>.\00-STM32F4xx_STANDARD_PERIPHERAL_DRIVERS\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_rtc.c</FilePath>
             </File>
+            <File>
+              <FileName>stm32f4xx_tim.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\00-STM32F4xx_STANDARD_PERIPHERAL_DRIVERS\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_tim.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -577,6 +582,11 @@
               <FileName>tm_stm32f4_rtc.c</FileName>
               <FileType>1</FileType>
               <FilePath>.\00-STM32F429_LIBRARIES\tm_stm32f4_rtc.c</FilePath>
+            </File>
+            <File>
+              <FileName>tm_stm32f4_watchdog.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\TM\tm_stm32f4_watchdog.c</FilePath>
             </File>
           </Files>
         </Group>
