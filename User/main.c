@@ -73,9 +73,11 @@ TM_RTC_t datatime;
 TM_RTC_AlarmTime_t AlarmTime;
 
 //Array for WattMeasuring
-#define MAX_COUNT_ARRAY_WATT 1799
-uint16_t Watt[MAX_COUNT_ARRAY_WATT+1][4]; 
-uint16_t Count_Array_Watt;
+#define MAX_COUNT_ARRAY_WATT 299	//1799
+uint16_t Watt[MAX_COUNT_ARRAY_WATT+1][2];
+float Temperature[MAX_COUNT_ARRAY_WATT+1];
+uint32_t Presure[MAX_COUNT_ARRAY_WATT+1];
+uint16_t Count_Array_Watt, Count_for_SD_Write;
 
 int main(void) {
 	
@@ -112,7 +114,7 @@ int main(void) {
     }
     
     //Set wakeup interrupt every 1 second
-    TM_RTC_Interrupts(TM_RTC_Int_1s);
+//    TM_RTC_Interrupts(TM_RTC_Int_1s);
 	
 //			/* Set alarm A each day 1 (Monday) in a week */
 //            /* Alarm will be first triggered 5 seconds later as time is configured for RTC */
@@ -154,9 +156,9 @@ int main(void) {
 	
 	/* Attach interrupt on pin PA15 = External line 15 */
 	/* Button connected on discovery boards */
-	if (TM_EXTI_Attach(GPIOA, GPIO_Pin_15, TM_EXTI_Trigger_Falling) == TM_EXTI_Result_Ok) {
-		TM_DISCO_LedOn(LED_RED);
-	} 
+//	if (TM_EXTI_Attach(GPIOA, GPIO_Pin_15, TM_EXTI_Trigger_Falling) == TM_EXTI_Result_Ok) {
+//		TM_DISCO_LedOn(LED_RED);
+//	} 
 
 	
 	/* Initialize NRF24L01+ on channel 15 and 32bytes of payload */
@@ -446,13 +448,15 @@ static void StartThread(void const * argument)
 	
 	Watt[Count_Array_Watt][0] = time_temp;
 	Watt[Count_Array_Watt][1] = ADC_Value;
-	Watt[Count_Array_Watt][2] = real_tempr;
-	Watt[Count_Array_Watt][3] = BMP180_Data.Pressure;
+	Temperature[Count_Array_Watt] = real_tempr;
+	Presure[Count_Array_Watt] = BMP180_Data.Pressure;
 		
 	Max_ADC = (Max_ADC < ADC_Value) ? ADC_Value : Max_ADC;
-
-	if (++Count_Array_Watt > MAX_COUNT_ARRAY_WATT)
+		
+	Count_Array_Watt++;
+	if ((Count_Array_Watt > MAX_COUNT_ARRAY_WATT) || (TM_DISCO_ButtonPressed()))
 	{
+		Count_for_SD_Write = Count_Array_Watt - 1;
 		xSemaphoreGive(xSDcard_write);
 	  xSemaphoreTake(xSDcard_written_done, portMAX_DELAY);
 		Count_Array_Watt = 0;
@@ -477,7 +481,7 @@ static void StartThread(void const * argument)
 					sprintf(buffer, "%02d:%02d:%02d i=%u ADC=%u", datatime.hours, datatime.minutes, datatime.seconds, Count_Array_Watt, ADC_Value);
 					TM_ILI9341_Puts(10, 140, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 				  
-					sprintf(buffer, "Max = %u", Max_ADC);
+					sprintf(buffer, "Max = %u   T = %.2f", Max_ADC, real_tempr);
 					TM_ILI9341_Puts(10, 160, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 				  // We have finished accessing the shared resource.  Release the semaphore.
 					xSemaphoreGive( xMutex_LCD );
@@ -500,31 +504,31 @@ static void SDCardThread(void const * argument)
 	uint16_t time=0;
 	uint32_t i;
 
-//	if (f_mount(&FatFs, "0:", 1) == FR_OK) {
-//		/* Mounted OK, turn on RED LED */
-//			TM_DISCO_LedOn(LED_RED);	
-//				
-//		temp_sd_res = f_open(&fil, "0:Tempr.txt", FA_OPEN_EXISTING | FA_READ | FA_WRITE);
-//		if (temp_sd_res != FR_OK) 
-//			{
-//				if (f_open(&fil, "0:Tempr.txt", FA_CREATE_NEW | FA_READ | FA_WRITE) == FR_OK)
-//					{//write redline
-//						sprintf(buffer, "Numb\tTemp\tX\tY\tZ\n");
-//						if(f_lseek(&fil, f_size(&fil)) == FR_OK){};
-//							
-//							/* If we put more than 0 characters (everything OK) */
-//							if (f_puts(buffer, &fil) > 0) {
-//								if (TM_FATFS_DriveSize(&total, &free) == FR_OK) {
-//									/* Data for drive size are valid */
-//									/* Close file, don't forget this! */
-//									f_close(&fil);
-//								}
-//					}
-//				}
-//			
-//				}
-//			else
-//			{
+	if (f_mount(&FatFs, "0:", 1) == FR_OK) {
+		/* Mounted OK, turn on RED LED */
+			TM_DISCO_LedOn(LED_RED);	
+				
+		temp_sd_res = f_open(&fil, "0:Tempr.txt", FA_OPEN_EXISTING | FA_READ | FA_WRITE);
+		if (temp_sd_res != FR_OK) 
+			{
+				if (f_open(&fil, "0:Tempr.txt", FA_CREATE_NEW | FA_READ | FA_WRITE) == FR_OK)
+					{//write redline
+						sprintf(buffer, "Time\t\tVol\tTempr\tPresure\n");
+						if(f_lseek(&fil, f_size(&fil)) == FR_OK){};
+							
+							/* If we put more than 0 characters (everything OK) */
+							if (f_puts(buffer, &fil) > 0) {
+								if (TM_FATFS_DriveSize(&total, &free) == FR_OK) {
+									/* Data for drive size are valid */
+									/* Close file, don't forget this! */
+									f_close(&fil);
+								}
+					}
+				}
+			TM_DISCO_LedOff(LED_RED);
+				}
+			else
+			{
 //				//file existing and open
 //								sprintf(buffer, "------------------------\n");
 //								if(f_lseek(&fil, f_size(&fil)) == FR_OK){};
@@ -539,18 +543,18 @@ static void SDCardThread(void const * argument)
 //											}
 //										}
 //					f_close(&fil);
+				}
+			
+//				sprintf(buffer, "0:Hello.txt");	
+//			if (f_open(&fil, buffer, FA_CREATE_ALWAYS | FA_READ | FA_WRITE) == FR_OK)
+//				{
+//					f_close(&fil);
 //				}
-//			
-////				sprintf(buffer, "0:Hello.txt");	
-////			if (f_open(&fil, buffer, FA_CREATE_ALWAYS | FA_READ | FA_WRITE) == FR_OK)
-////				{
-////					f_close(&fil);
-////				}
-//				
-//				/* Unmount drive, don't forget this! */
+				
+				/* Unmount drive, don't forget this! */
 //				f_mount(0, "0:", 1);
-//				
-//			}
+				
+			}
 	
   for(;;)
   {
@@ -564,13 +568,13 @@ static void SDCardThread(void const * argument)
 				if (f_open(&fil, "0:Tempr.txt", FA_OPEN_ALWAYS | FA_READ | FA_WRITE) == FR_OK) {
 					/* File opened, turn off RED and turn on GREEN led */
 			
-					for (i=0; i<MAX_COUNT_ARRAY_WATT; i++)
+					for (i=0; i<=Count_for_SD_Write; i++)
 						{
 							// We were able to obtain the semaphore and can now access the shared resource.
 							datatime.hours = (Watt[i][0] & 0xF000)>>12;
 							datatime.minutes = (Watt[i][0] & 0x0FC0)>>6;
 							datatime.seconds = (Watt[i][0] & 0x3F);
-							sprintf(buffer, "%02d:%02d:%02d\t%u\t%u\t%u\t%u\n", datatime.hours, datatime.minutes, datatime.seconds, i, Watt[i][1], Watt[i][2], Watt[i][3]);
+							sprintf(buffer, "%02d:%02d:%02d\t%u\t%.2f\t%u\n", datatime.hours, datatime.minutes, datatime.seconds, Watt[i][1], Temperature[i], Presure[i]);
 							if(f_lseek(&fil, f_size(&fil)) == FR_OK){};
 							
 							/* If we put more than 0 characters (everything OK) */
@@ -581,7 +585,7 @@ static void SDCardThread(void const * argument)
 								}
 								
 								/* Turn on both leds */
-					//			TM_DISCO_LedOn(LED_GREEN | LED_RED);
+								TM_DISCO_LedOff(LED_RED);
 							}
 						}
 					
