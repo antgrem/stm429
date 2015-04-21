@@ -351,9 +351,11 @@ static void StartThread(void const * argument)
 	uint16_t	time_temp;
 	uint8_t tempr[2];
 	TM_BMP180_Oversampling_t BMP180_Oversampling;
+	float Voltage_ADC, Current_ADC;
 	
 	xLastWakeTime = xTaskGetTickCount();
 	Max_ADC = 0;
+	Voltage_ADC = Current_ADC = 0.0;
 	
 	osDelay(1900);
 
@@ -405,6 +407,9 @@ static void StartThread(void const * argument)
 	//Read ADC1 channel 13
 	ADC_Value = TM_ADC_Read(ADC1, ADC_Channel_13);
 	
+	Voltage_ADC = (float)ADC_Value * 0.805664f * 1.8f;
+	Current_ADC = Voltage_ADC / 30.0f;
+	
 	TM_I2C_ReadMulti(STMPE811_I2C, LM75_ADDRESS, 0x00, tempr, 2); // Read temperature from LM75
 	real_tempr = (float)tempr[0] + 0.125*(tempr[1]>>5);
 
@@ -443,25 +448,7 @@ static void StartThread(void const * argument)
 		
 	Max_ADC = (Max_ADC < ADC_Value) ? ADC_Value : Max_ADC;
 		
-	Count_Array_Watt++;
-	if (Count_Array_Watt > MAX_COUNT_ARRAY_WATT)
-	{
-		Count_for_SD_Write = Count_Array_Watt - 1;
-		xSemaphoreGive(xSDcard_write);
-	  xSemaphoreTake(xSDcard_written_done, portMAX_DELAY);
-		Count_Array_Watt = 0;
-		Max_ADC = 0;
-	}
-	
-	if (TM_DISCO_ButtonPressed())
-	{
-		Count_for_SD_Write = Count_Array_Watt - 1;
-		xSemaphoreGive(xSDcard_write);
-	  xSemaphoreTake(xSDcard_written_done, portMAX_DELAY);
-		Count_Array_Watt = 0;
-		Max_ADC = 0;
-	}
-	
+
 			
 	if( xMutex_LCD != NULL )
 		{
@@ -474,21 +461,46 @@ static void StartThread(void const * argument)
 					datatime.minutes = (time_temp & 0x0FC0)>>6;
 					datatime.seconds = (time_temp & 0x3F);
 					
-					sprintf(buffer, "                         ");
+					sprintf(buffer, "                             ");
 					TM_ILI9341_Puts(10, 140, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
+					TM_ILI9341_Puts(10, 160, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
+					TM_ILI9341_Puts(10, 180, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 				  
-					sprintf(buffer, "%02d:%02d:%02d i=%u ADC=%u", datatime.hours, datatime.minutes, datatime.seconds, Count_Array_Watt, ADC_Value);
+					sprintf(buffer, "%02d:%02d:%02d %u ADC=%u", datatime.hours, datatime.minutes, datatime.seconds, Count_Array_Watt, ADC_Value);
 					TM_ILI9341_Puts(10, 140, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 				  
 					sprintf(buffer, "Max = %u   T = %.2f", Max_ADC, real_tempr);
 					TM_ILI9341_Puts(10, 160, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
+				
+					sprintf(buffer, "V = %.2f mV I = %.4f mA", Voltage_ADC, Current_ADC);
+					TM_ILI9341_Puts(10, 180, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 				  // We have finished accessing the shared resource.  Release the semaphore.
 					xSemaphoreGive( xMutex_LCD );
 			}
 		}
 
+	Count_Array_Watt++;
+	if (Count_Array_Watt > MAX_COUNT_ARRAY_WATT)
+	{
+		Count_for_SD_Write = Count_Array_Watt - 1;
+		TM_DISCO_LedOn(LED_RED);
+		xSemaphoreGive(xSDcard_write);
+	  xSemaphoreTake(xSDcard_written_done, portMAX_DELAY);
+		Count_Array_Watt = 0;
+		Max_ADC = 0;
+	}
+	
+	if (TM_DISCO_ButtonPressed())
+	{
+		Count_for_SD_Write = Count_Array_Watt - 1;
+		TM_DISCO_LedOn(LED_RED);
+		xSemaphoreGive(xSDcard_write);
+	  xSemaphoreTake(xSDcard_written_done, portMAX_DELAY);
+		Count_Array_Watt = 0;
+		Max_ADC = 0;
+	}
 		
-		osDelay(1000);
+		osDelay(5000);
 //		osDelayUntil(xLastWakeTime, 1000);
   }
 
@@ -504,9 +516,7 @@ static void SDCardThread(void const * argument)
 	uint32_t i;
 
 	if (f_mount(&FatFs, "0:", 1) == FR_OK) {
-		/* Mounted OK, turn on RED LED */
-			TM_DISCO_LedOn(LED_RED);	
-				
+						
 		temp_sd_res = f_open(&fil, "0:Tempr.txt", FA_OPEN_EXISTING | FA_READ | FA_WRITE);
 		if (temp_sd_res != FR_OK) 
 			{
@@ -522,9 +532,8 @@ static void SDCardThread(void const * argument)
 									/* Close file, don't forget this! */
 									f_close(&fil);
 								}
+						}
 					}
-				}
-			TM_DISCO_LedOff(LED_RED);
 				}
 			else
 			{
@@ -553,16 +562,14 @@ static void SDCardThread(void const * argument)
 				/* Unmount drive, don't forget this! */
 				f_mount(0, "0:", 1);
 				
-			}
+			}//end mount SD
 	
   for(;;)
   {
 		xSemaphoreTake(xSDcard_write, portMAX_DELAY);
 		
 		if (f_mount(&FatFs, "0:", 1) == FR_OK) {
-				/* Mounted OK, turn on RED LED */
-			TM_DISCO_LedOn(LED_RED);	
-				
+								
 				/* Try to open file */
 				if (f_open(&fil, "0:Tempr.txt", FA_OPEN_ALWAYS | FA_READ | FA_WRITE) == FR_OK) {
 					/* File opened, turn off RED and turn on GREEN led */
@@ -582,9 +589,6 @@ static void SDCardThread(void const * argument)
 									/* Data for drive size are valid */
 									
 								}
-								
-								/* Turn on both leds */
-								TM_DISCO_LedOff(LED_RED);
 							}
 						}
 					
@@ -598,6 +602,7 @@ static void SDCardThread(void const * argument)
 				/* Unmount drive, don't forget this! */
 				f_mount(0, "0:", 1);
 			}	
+		TM_DISCO_LedOff(LED_RED);
 		xSemaphoreGive(xSDcard_written_done);
 }
 	
@@ -788,8 +793,9 @@ void TM_RTC_AlarmAHandler(void)
 {
     TM_DISCO_LedToggle(LED_RED);
     
+		TM_DISCO_LedOn(LED_RED | LED_GREEN);
     /* Disable Alarm so it will not trigger next week at the same time */
-    //TM_RTC_DisableAlarm(TM_RTC_Alarm_A);
+    TM_RTC_DisableAlarm(TM_RTC_Alarm_A);
 }
 
 
