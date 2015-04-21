@@ -16,7 +16,7 @@
 /* Include core modules */
 #include "main.h"
 
-
+#define LM75_ADDRESS 0x9F
 
 /* Private function prototypes -----------------------------------------------*/
 static void StartThread(void const * argument);
@@ -156,6 +156,7 @@ int main(void) {
        	TM_ILI9341_Puts(120, 20, "Error init BMP180", &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_RED);
     }
 	
+		
 	
 	/* Attach interrupt on pin PA15 = External line 15 */
 	/* Button connected on discovery boards */
@@ -184,7 +185,13 @@ int main(void) {
 
 	if(TM_STMPE811_Init() == TM_STMPE811_State_Ok)
 		{
-			TM_I2C_Read(STMPE811_I2C, 0x9F, 0x00);
+			if (TM_I2C_Read(STMPE811_I2C, LM75_ADDRESS, 0x00) == 0)
+			{
+				TM_ILI9341_Puts(60, 40, "Error init LM75", &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_RED);
+				sprintf(buffer, "config = %u", TM_I2C_Read(STMPE811_I2C, LM75_ADDRESS, 0x01));
+				TM_ILI9341_Puts(60, 40, buffer, &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_RED);
+			}
+						
 			TM_I2C_Write(STMPE811_I2C, STMPE811_ADDRESS, STMPE811_INT_CTRL, 0x03);
 			TM_I2C_Write(STMPE811_I2C, STMPE811_ADDRESS, STMPE811_INT_STA, 0x01);
 			TM_I2C_Write(STMPE811_I2C, STMPE811_ADDRESS, STMPE811_INT_EN, 0x01);	
@@ -231,30 +238,7 @@ int main(void) {
 		
 
 	
-//===============================
-//		if (LM75_Init(100000))
-//		while(1);
-//	
 
-
-//    value = LM75_ReadReg(0x00);
-//		TM_ILI9341_Puts(60, 03, "werfdfs", &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_BLUE2);
-//	
-//	value = LM75_ReadConf();
-
-//	value = LM75_ReadReg(0x02);
-
-//	value = LM75_ReadReg(0x03);
-
-//	LM75_Shutdown(DISABLE);
-
-//    temp = LM75_Temperature();
-//    UART_SendInt(temp / 10); UART_SendChar('.');
-//    temp %= 10;
-//    if (temp < 0) temp *= -1;
-//    UART_SendInt(temp % 10); UART_SendStr("C\n");
-	
-//=======================================	
 	
 //	/* Initialize NRF24L01+ on channel 15 and 32bytes of payload */
 //	/* By default 2Mbps data rate and 0dBm output power */
@@ -370,6 +354,8 @@ static void StartThread(void const * argument)
 	
 	xLastWakeTime = xTaskGetTickCount();
 	Max_ADC = 0;
+	
+	osDelay(1900);
 
   for(;;)
   {
@@ -418,7 +404,8 @@ static void StartThread(void const * argument)
 	time_temp = (((datatime.hours & 0x0F)<<12) | ((datatime.minutes & 0x3F)<<6) | (datatime.seconds));
 	//Read ADC1 channel 13
 	ADC_Value = TM_ADC_Read(ADC1, ADC_Channel_13);
-	TM_I2C_ReadMulti(STMPE811_I2C, 0x9F, 0x00, tempr, 2); // Read temperature from LM75
+	
+	TM_I2C_ReadMulti(STMPE811_I2C, LM75_ADDRESS, 0x00, tempr, 2); // Read temperature from LM75
 	real_tempr = (float)tempr[0] + 0.125*(tempr[1]>>5);
 
 	/* Start temperature conversion */
@@ -457,7 +444,16 @@ static void StartThread(void const * argument)
 	Max_ADC = (Max_ADC < ADC_Value) ? ADC_Value : Max_ADC;
 		
 	Count_Array_Watt++;
-	if ((Count_Array_Watt > MAX_COUNT_ARRAY_WATT) || (TM_DISCO_ButtonPressed()))
+	if (Count_Array_Watt > MAX_COUNT_ARRAY_WATT)
+	{
+		Count_for_SD_Write = Count_Array_Watt - 1;
+		xSemaphoreGive(xSDcard_write);
+	  xSemaphoreTake(xSDcard_written_done, portMAX_DELAY);
+		Count_Array_Watt = 0;
+		Max_ADC = 0;
+	}
+	
+	if (TM_DISCO_ButtonPressed())
 	{
 		Count_for_SD_Write = Count_Array_Watt - 1;
 		xSemaphoreGive(xSDcard_write);
@@ -546,16 +542,16 @@ static void SDCardThread(void const * argument)
 //											}
 //										}
 //					f_close(&fil);
-				}
+//				}
 			
 //				sprintf(buffer, "0:Hello.txt");	
 //			if (f_open(&fil, buffer, FA_CREATE_ALWAYS | FA_READ | FA_WRITE) == FR_OK)
 //				{
 //					f_close(&fil);
-//				}
+				}
 				
 				/* Unmount drive, don't forget this! */
-//				f_mount(0, "0:", 1);
+				f_mount(0, "0:", 1);
 				
 			}
 	
@@ -696,7 +692,7 @@ static void SensorsThread(void const * argument)
 			}
 		}
 	
-		TM_I2C_ReadMulti(STMPE811_I2C, 0x9F, 0x00, tempr, 2); // Read temperature from LM75
+		TM_I2C_ReadMulti(STMPE811_I2C, LM75_ADDRESS, 0x00, tempr, 2); // Read temperature from LM75
 		real_tempr = (float)tempr[0] + 0.125*(tempr[1]>>5);
 			
 		if( xMutex_LCD != NULL )
