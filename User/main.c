@@ -74,7 +74,7 @@ TM_RTC_t datatime;
 TM_RTC_AlarmTime_t AlarmTime;
 
 //Array for WattMeasuring
-#define MAX_COUNT_ARRAY_WATT 299	//1799
+#define MAX_COUNT_ARRAY_WATT 10000	//1799
 uint16_t Watt[MAX_COUNT_ARRAY_WATT+1][2];
 float Temperature[MAX_COUNT_ARRAY_WATT+1];
 uint32_t Presure[MAX_COUNT_ARRAY_WATT+1];
@@ -98,7 +98,7 @@ int main(void) {
 	
 	Init_CE_Gpio();
 	
-	Init_Timer_for_SD();
+//	Init_Timer_for_SD();
 	
     //Initialize RTC with internal 32768Hz clock
     //It's not very accurate
@@ -461,7 +461,7 @@ static void StartThread(void const * argument)
 					datatime.minutes = (time_temp & 0x0FC0)>>6;
 					datatime.seconds = (time_temp & 0x3F);
 					
-					sprintf(buffer, "                             ");
+					sprintf(buffer, "                           ");
 					TM_ILI9341_Puts(10, 140, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 					TM_ILI9341_Puts(10, 160, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 					TM_ILI9341_Puts(10, 180, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
@@ -472,7 +472,7 @@ static void StartThread(void const * argument)
 					sprintf(buffer, "Max = %u   T = %.2f", Max_ADC, real_tempr);
 					TM_ILI9341_Puts(10, 160, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 				
-					sprintf(buffer, "V = %.2f mV I = %.4f mA", Voltage_ADC, Current_ADC);
+					sprintf(buffer, "V = %.2f mV I = %.3f mA", Voltage_ADC, Current_ADC);
 					TM_ILI9341_Puts(10, 180, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 				  // We have finished accessing the shared resource.  Release the semaphore.
 					xSemaphoreGive( xMutex_LCD );
