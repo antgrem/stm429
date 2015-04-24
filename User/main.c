@@ -26,6 +26,8 @@ static void TouchThread(void const * argument);
 void TM_EXTI_Handler_15(void);
 void Init_Timer_for_SD(void);
 
+void Write_Data_to_SD (uint16_t Count); 
+
 void Init_CE_Gpio(void);
 
 	TM_L3GD20_t L3GD20_Data;
@@ -37,6 +39,8 @@ void Init_CE_Gpio(void);
 	uint16_t flag;
 	uint8_t temp;
 	TM_BMP180_t BMP180_Data;
+	
+	FRESULT temp_sd_res;
 	
 	xTaskHandle xTouchThread;
 	xSemaphoreHandle  xMutex_LCD, xWatt_1_sec_measure;
@@ -75,6 +79,7 @@ TM_RTC_AlarmTime_t AlarmTime;
 
 //Array for WattMeasuring
 #define MAX_COUNT_ARRAY_WATT 299	//1799
+#define TIME_FOR_GET_MEASURE 1000 // in ms
 uint16_t Watt[MAX_COUNT_ARRAY_WATT+1][2];
 float Temperature[MAX_COUNT_ARRAY_WATT+1];
 uint32_t Presure[MAX_COUNT_ARRAY_WATT+1];
@@ -83,6 +88,7 @@ uint16_t Count_Array_Watt, Count_for_SD_Write;
 int main(void) {
 	
 	/* Initialize system */
+	
 	SystemInit();
 	
 	Count_Array_Watt = 0;
@@ -198,6 +204,35 @@ int main(void) {
 		};
 		
 
+		
+// 
+			if (f_mount(&FatFs, "0:", 1) == FR_OK) 
+				{
+							
+					temp_sd_res = f_open(&fil, "0:Tempr.txt", FA_OPEN_EXISTING | FA_READ | FA_WRITE);
+					if (temp_sd_res != FR_OK) 
+						{
+							if (f_open(&fil, "0:Tempr.txt", FA_CREATE_NEW | FA_READ | FA_WRITE) == FR_OK)
+								{//write redline
+									sprintf(buffer, "Time\t\tVol\tTempr\tPresure\n");
+									if(f_lseek(&fil, f_size(&fil)) == FR_OK){};
+										
+										/* If we put more than 0 characters (everything OK) */
+										if (f_puts(buffer, &fil) > 0) {
+											if (TM_FATFS_DriveSize(&total, &free) == FR_OK) {
+												/* Data for drive size are valid */
+												/* Close file, don't forget this! */
+												f_close(&fil);
+											}
+									}
+								}
+							}
+							
+							/* Unmount drive, don't forget this! */
+							f_mount(0, "0:", 1);
+					
+				}//end mount SD
+			
 
 
 		xMutex_LCD = xSemaphoreCreateMutex();
@@ -219,8 +254,8 @@ int main(void) {
 //	osThreadDef(SensorsThread, SensorsThread, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
 //  osThreadCreate (osThread(SensorsThread), NULL);
 	
-	osThreadDef(SD_Thread, SDCardThread, osPriorityAboveNormal, 0, configMINIMAL_STACK_SIZE);
-  osThreadCreate (osThread(SD_Thread), NULL);	
+//	osThreadDef(SD_Thread, SDCardThread, osPriorityAboveNormal, 0, configMINIMAL_STACK_SIZE);
+//  osThreadCreate (osThread(SD_Thread), NULL);	
 
   /* Create Start thread */
   osThreadDef(USER_Thread, StartThread, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
@@ -236,83 +271,6 @@ int main(void) {
   {
   }
 		
-
-	
-
-	
-//	/* Initialize NRF24L01+ on channel 15 and 32bytes of payload */
-//	/* By default 2Mbps data rate and 0dBm output power */
-//	/* NRF24L01 goes to RX mode by default */
-//	TM_NRF24L01_Init(15, 32);
-//	
-//	/* Set 2MBps data rate and -18dBm output power */
-//	TM_NRF24L01_SetRF(TM_NRF24L01_DataRate_2M, TM_NRF24L01_OutputPower_M18dBm);
-//	
-//	/* Set my address, 5 bytes */
-//	TM_NRF24L01_SetMyAddress(MyAddress);
-//	/* Set TX address, 5 bytes */
-//	TM_NRF24L01_SetTxAddress(TxAddress);
-//	
-//	/* Reset counter */
-//	TM_DELAY_SetTime(2001);
-//	while (1) {
-//		/* Every 2 seconds */
-//		if (TM_DELAY_Time() > 2000) {
-//			/* Fill data with something */
-//			sprintf((char *)dataOut, "abcdefghijklmnoszxABCDEFCBDA");
-//			/* Display on USART */
-//			TM_USART_Puts(USART1, "pinging: ");
-//			/* Reset time, start counting microseconds */
-//			TM_DELAY_SetTime(0);
-//			/* Transmit data, goes automatically to TX mode */
-//			TM_NRF24L01_Transmit(dataOut);
-//			
-//			/* Turn on led to indicate sending */
-//			TM_DISCO_LedOn(LED_GREEN);
-//			/* Wait for data to be sent */
-//			do {
-//				transmissionStatus = TM_NRF24L01_GetTransmissionStatus();
-//			} while (transmissionStatus == TM_NRF24L01_Transmit_Status_Sending);
-//			/* Turn off led */
-//			TM_DISCO_LedOff(LED_GREEN);
-//			
-//			/* Go back to RX mode */
-//			TM_NRF24L01_PowerUpRx();
-//			
-//			/* Wait received data, wait max 100ms, if time is larger, then data were probably lost */
-//			while (!TM_NRF24L01_DataReady() && TM_DELAY_Time() < 100);
-//			
-//			/* Format time */
-//			sprintf(str, "%d ms", TM_DELAY_Time());
-//			/* Show ping time */
-//			TM_USART_Puts(USART1, str);
-//			
-//			/* Get data from NRF2L01+ */
-//			TM_NRF24L01_GetData(dataIn);
-//			
-//			/* Check transmit status */
-//			if (transmissionStatus == TM_NRF24L01_Transmit_Status_Ok) {
-//				/* Transmit went OK */
-//				TM_USART_Puts(USART1, ": OK\n");
-//				sprintf(str, "Type of MS: %c", (char)dataIn[0]);
-//				TM_ILI9341_Puts(05, 23, str, &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_BLUE2);
-//				sprintf(str, "Counter: %d", (char)dataIn[1]);
-//				TM_ILI9341_Puts(05, 43, str, &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_BLUE2);
-//				
-//				sprintf(str, "Data: %s", (dataIn+2));
-//				TM_ILI9341_Puts(05, 63, str, &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_BLUE2);
-//				
-//				sprintf(str, "Data: %s", (dataIn+2));
-//				TM_ILI9341_Puts(05, 63, str, &TM_Font_11x18, BackGround, BackGround);
-//			} else if (transmissionStatus == TM_NRF24L01_Transmit_Status_Lost) {
-//				/* Message was LOST */
-//				TM_USART_Puts(USART1, ": LOST\n");
-//			} else {
-//				/* This should never happen */
-//				TM_USART_Puts(USART1, ": SENDING\n");
-//			}
-//		}
-//	}
 
 }
 
@@ -345,13 +303,14 @@ static void TouchThread(void const * argument)
 
 static void StartThread(void const * argument)
 {
-//Thread show all works good
+//Thread for measure data and write it to SD
 	portTickType xLastWakeTime;
 	uint16_t  ADC_Value, Max_ADC;
-	uint16_t	time_temp;
+	uint16_t	time_temp, temp_hours;
 	uint8_t tempr[2];
 	TM_BMP180_Oversampling_t BMP180_Oversampling;
 	float Voltage_ADC, Current_ADC;
+	uint32_t i;
 	
 	xLastWakeTime = xTaskGetTickCount();
 	Max_ADC = 0;
@@ -361,49 +320,15 @@ static void StartThread(void const * argument)
 
   for(;;)
   {
-    
-//		if( xMutex_LCD != NULL ) // Reset LCD screen in 1 second
-//			{
-//        // See if we can obtain the semaphore.  If the semaphore is not available
-//        // wait 10 ticks to see if it becomes free.	
-//        if( xSemaphoreTake( xMutex_LCD, ( portTickType ) 50 ) == pdTRUE )
-//        {
-//            // We were able to obtain the semaphore and can now access the shared resource.
-//            TM_ILI9341_Fill(ILI9341_COLOR_BROWN);
-//											
-//            // We have finished accessing the shared resource.  Release the semaphore.
-//            xSemaphoreGive( xMutex_LCD );
-//        }
-//			}
 			
-   	GPIO_ToggleBits(GPIOG, GPIO_Pin_13);
-		
-//		if( xMutex_LCD != NULL )
-//			{
-//        // See if we can obtain the semaphore.  If the semaphore is not available
-//        // wait 10 ticks to see if it becomes free.	
-//        if( xSemaphoreTake( xMutex_LCD, ( portTickType ) 50 ) == pdTRUE )
-//        {
-//            // We were able to obtain the semaphore and can now access the shared resource.
-//            sprintf(buffer, "System works good");
-//						TM_ILI9341_Puts(10, 160, buffer, &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_ORANGE);
-//					
-//            // We have finished accessing the shared resource.  Release the semaphore.
-//            xSemaphoreGive( xMutex_LCD );
-//        }
-//        else
-//        {
-//            // We could not obtain the semaphore and can therefore not access
-//            // the shared resource safely.
-//        }
-//			}
+  GPIO_ToggleBits(GPIOG, GPIO_Pin_13);
 			
-				//Get time
+	//Get time
   TM_RTC_GetDateTime(&datatime, TM_RTC_Format_BIN);
 	
-	if (datatime.hours >= 13) datatime.hours -= 12;
+	if (datatime.hours >= 13) temp_hours = datatime.hours - 12;
 	
-	time_temp = (((datatime.hours & 0x0F)<<12) | ((datatime.minutes & 0x3F)<<6) | (datatime.seconds));
+	time_temp = (((temp_hours & 0x0F)<<12) | ((datatime.minutes & 0x3F)<<6) | (datatime.seconds));
 	//Read ADC1 channel 13
 	ADC_Value = TM_ADC_Read(ADC1, ADC_Channel_13);
 	
@@ -441,12 +366,12 @@ static void StartThread(void const * argument)
 		/* Read pressure value */
 		TM_BMP180_ReadPressure(&BMP180_Data);
 	
-	Watt[Count_Array_Watt][0] = time_temp;
-	Watt[Count_Array_Watt][1] = ADC_Value;
-	Temperature[Count_Array_Watt] = real_tempr;
-	Presure[Count_Array_Watt] = BMP180_Data.Pressure;
-		
-	Max_ADC = (Max_ADC < ADC_Value) ? ADC_Value : Max_ADC;
+		Watt[Count_Array_Watt][0] = time_temp;
+		Watt[Count_Array_Watt][1] = ADC_Value;
+		Temperature[Count_Array_Watt] = real_tempr;
+		Presure[Count_Array_Watt] = BMP180_Data.Pressure;
+			
+		Max_ADC = (Max_ADC < ADC_Value) ? ADC_Value : Max_ADC;
 		
 
 			
@@ -454,22 +379,22 @@ static void StartThread(void const * argument)
 		{
 			// See if we can obtain the semaphore.  If the semaphore is not available
 			// wait 10 ticks to see if it becomes free.	
-			if( xSemaphoreTake( xMutex_LCD, ( portTickType ) 50 ) == pdTRUE )
+			if (xSemaphoreTake( xMutex_LCD, ( portTickType ) 50 ) == pdTRUE)
 			{
 					// We were able to obtain the semaphore and can now access the shared resource.
-					datatime.hours = (time_temp & 0xF000)>>12;
-					datatime.minutes = (time_temp & 0x0FC0)>>6;
-					datatime.seconds = (time_temp & 0x3F);
 					
 					sprintf(buffer, "                             ");
 					TM_ILI9341_Puts(10, 140, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 					TM_ILI9341_Puts(10, 160, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 					TM_ILI9341_Puts(10, 180, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 				  
-					sprintf(buffer, "%02d:%02d:%02d %u ADC=%u", datatime.hours, datatime.minutes, datatime.seconds, Count_Array_Watt, ADC_Value);
-					TM_ILI9341_Puts(10, 140, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
+					sprintf(buffer, "%02d:%02d:%02d", datatime.hours, datatime.minutes, datatime.seconds);
+					TM_ILI9341_Puts(10, 120, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 				  
-					sprintf(buffer, "Max = %u   T = %.2f", Max_ADC, real_tempr);
+					sprintf(buffer, "i = %u   ADC = %u Max = %u",  Count_Array_Watt, ADC_Value, Max_ADC);
+					TM_ILI9341_Puts(10, 140, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
+				
+					sprintf(buffer, "T = %.2f  B = %u", real_tempr, BMP180_Data.Pressure);
 					TM_ILI9341_Puts(10, 160, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 				
 					sprintf(buffer, "V = %.2f mV I = %.4f mA", Voltage_ADC, Current_ADC);
@@ -480,27 +405,21 @@ static void StartThread(void const * argument)
 		}
 
 	Count_Array_Watt++;
-	if (Count_Array_Watt > MAX_COUNT_ARRAY_WATT)
+	if ((Count_Array_Watt > MAX_COUNT_ARRAY_WATT) || TM_DISCO_ButtonPressed())
 	{
 		Count_for_SD_Write = Count_Array_Watt - 1;
 		TM_DISCO_LedOn(LED_RED);
-		xSemaphoreGive(xSDcard_write);
-	  xSemaphoreTake(xSDcard_written_done, portMAX_DELAY);
+//		xSemaphoreGive(xSDcard_write);
+//	  xSemaphoreTake(xSDcard_written_done, portMAX_DELAY);
 		Count_Array_Watt = 0;
 		Max_ADC = 0;
+		
+		Write_Data_to_SD (Count_for_SD_Write);
+				
 	}
 	
-	if (TM_DISCO_ButtonPressed())
-	{
-		Count_for_SD_Write = Count_Array_Watt - 1;
-		TM_DISCO_LedOn(LED_RED);
-		xSemaphoreGive(xSDcard_write);
-	  xSemaphoreTake(xSDcard_written_done, portMAX_DELAY);
-		Count_Array_Watt = 0;
-		Max_ADC = 0;
-	}
 		
-		osDelay(5000);
+		osDelay(TIME_FOR_GET_MEASURE);
 //		osDelayUntil(xLastWakeTime, 1000);
   }
 
@@ -511,9 +430,9 @@ static void StartThread(void const * argument)
 static void SDCardThread(void const * argument)
 {
 	//thread for work with CD_Card by SPI4
-	FRESULT temp_sd_res;
-	uint16_t time=0;
-	uint32_t i;
+
+//	uint16_t time=0;
+//	uint32_t i;
 
 	if (f_mount(&FatFs, "0:", 1) == FR_OK) {
 						
@@ -568,41 +487,10 @@ static void SDCardThread(void const * argument)
   {
 		xSemaphoreTake(xSDcard_write, portMAX_DELAY);
 		
-		if (f_mount(&FatFs, "0:", 1) == FR_OK) {
-								
-				/* Try to open file */
-				if (f_open(&fil, "0:Tempr.txt", FA_OPEN_ALWAYS | FA_READ | FA_WRITE) == FR_OK) {
-					/* File opened, turn off RED and turn on GREEN led */
-			
-					for (i=0; i<=Count_for_SD_Write; i++)
-						{
-							// We were able to obtain the semaphore and can now access the shared resource.
-							datatime.hours = (Watt[i][0] & 0xF000)>>12;
-							datatime.minutes = (Watt[i][0] & 0x0FC0)>>6;
-							datatime.seconds = (Watt[i][0] & 0x3F);
-							sprintf(buffer, "%02d:%02d:%02d\t%u\t%.2f\t%u\n", datatime.hours, datatime.minutes, datatime.seconds, Watt[i][1], Temperature[i], Presure[i]);
-							if(f_lseek(&fil, f_size(&fil)) == FR_OK){};
-							
-							/* If we put more than 0 characters (everything OK) */
-							if (f_puts(buffer, &fil) > 0) {
-								if (TM_FATFS_DriveSize(&total, &free) == FR_OK) {
-									/* Data for drive size are valid */
-									
-								}
-							}
-						}
-					
-					
+		Write_Data_to_SD (Count_for_SD_Write);
 
-					
-					/* Close file, don't forget this! */
-					f_close(&fil);
-				}
-				
-				/* Unmount drive, don't forget this! */
-				f_mount(0, "0:", 1);
-			}	
 		TM_DISCO_LedOff(LED_RED);
+		
 		xSemaphoreGive(xSDcard_written_done);
 }
 	
@@ -819,4 +707,123 @@ void Init_Timer_for_SD(void)
 	
 	TIM_Cmd(TIM6, ENABLE);	
 }
+
+
+void Write_Data_to_SD (uint16_t Count)
+{
+	uint16_t i;
+			if (f_mount(&FatFs, "0:", 1) == FR_OK) {
+								
+				/* Try to open file */
+				if (f_open(&fil, "0:Tempr.txt", FA_OPEN_ALWAYS | FA_READ | FA_WRITE) == FR_OK) {
+					/* File opened, turn off RED and turn on GREEN led */
+			
+					for (i=0; i<=Count; i++)
+						{
+							// We were able to obtain the semaphore and can now access the shared resource.
+							datatime.hours = (Watt[i][0] & 0xF000)>>12;
+							datatime.minutes = (Watt[i][0] & 0x0FC0)>>6;
+							datatime.seconds = (Watt[i][0] & 0x3F);
+							sprintf(buffer, "%02d:%02d:%02d\t%u\t%.2f\t%u\n", datatime.hours, datatime.minutes, datatime.seconds, Watt[i][1], Temperature[i], Presure[i]);
+							if(f_lseek(&fil, f_size(&fil)) == FR_OK){};
+							
+							/* If we put more than 0 characters (everything OK) */
+							if (f_puts(buffer, &fil) > 0) {
+								if (TM_FATFS_DriveSize(&total, &free) == FR_OK) {
+									/* Data for drive size are valid */
+									
+								}
+							}
+						}
+					
+					
+
+					
+					/* Close file, don't forget this! */
+					f_close(&fil);
+				}
+				
+				/* Unmount drive, don't forget this! */
+				f_mount(0, "0:", 1);
+			}	
+}
+
+
+//trash 
+//	/* Initialize NRF24L01+ on channel 15 and 32bytes of payload */
+//	/* By default 2Mbps data rate and 0dBm output power */
+//	/* NRF24L01 goes to RX mode by default */
+//	TM_NRF24L01_Init(15, 32);
+//	
+//	/* Set 2MBps data rate and -18dBm output power */
+//	TM_NRF24L01_SetRF(TM_NRF24L01_DataRate_2M, TM_NRF24L01_OutputPower_M18dBm);
+//	
+//	/* Set my address, 5 bytes */
+//	TM_NRF24L01_SetMyAddress(MyAddress);
+//	/* Set TX address, 5 bytes */
+//	TM_NRF24L01_SetTxAddress(TxAddress);
+//	
+//	/* Reset counter */
+//	TM_DELAY_SetTime(2001);
+//	while (1) {
+//		/* Every 2 seconds */
+//		if (TM_DELAY_Time() > 2000) {
+//			/* Fill data with something */
+//			sprintf((char *)dataOut, "abcdefghijklmnoszxABCDEFCBDA");
+//			/* Display on USART */
+//			TM_USART_Puts(USART1, "pinging: ");
+//			/* Reset time, start counting microseconds */
+//			TM_DELAY_SetTime(0);
+//			/* Transmit data, goes automatically to TX mode */
+//			TM_NRF24L01_Transmit(dataOut);
+//			
+//			/* Turn on led to indicate sending */
+//			TM_DISCO_LedOn(LED_GREEN);
+//			/* Wait for data to be sent */
+//			do {
+//				transmissionStatus = TM_NRF24L01_GetTransmissionStatus();
+//			} while (transmissionStatus == TM_NRF24L01_Transmit_Status_Sending);
+//			/* Turn off led */
+//			TM_DISCO_LedOff(LED_GREEN);
+//			
+//			/* Go back to RX mode */
+//			TM_NRF24L01_PowerUpRx();
+//			
+//			/* Wait received data, wait max 100ms, if time is larger, then data were probably lost */
+//			while (!TM_NRF24L01_DataReady() && TM_DELAY_Time() < 100);
+//			
+//			/* Format time */
+//			sprintf(str, "%d ms", TM_DELAY_Time());
+//			/* Show ping time */
+//			TM_USART_Puts(USART1, str);
+//			
+//			/* Get data from NRF2L01+ */
+//			TM_NRF24L01_GetData(dataIn);
+//			
+//			/* Check transmit status */
+//			if (transmissionStatus == TM_NRF24L01_Transmit_Status_Ok) {
+//				/* Transmit went OK */
+//				TM_USART_Puts(USART1, ": OK\n");
+//				sprintf(str, "Type of MS: %c", (char)dataIn[0]);
+//				TM_ILI9341_Puts(05, 23, str, &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_BLUE2);
+//				sprintf(str, "Counter: %d", (char)dataIn[1]);
+//				TM_ILI9341_Puts(05, 43, str, &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_BLUE2);
+//				
+//				sprintf(str, "Data: %s", (dataIn+2));
+//				TM_ILI9341_Puts(05, 63, str, &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_BLUE2);
+//				
+//				sprintf(str, "Data: %s", (dataIn+2));
+//				TM_ILI9341_Puts(05, 63, str, &TM_Font_11x18, BackGround, BackGround);
+//			} else if (transmissionStatus == TM_NRF24L01_Transmit_Status_Lost) {
+//				/* Message was LOST */
+//				TM_USART_Puts(USART1, ": LOST\n");
+//			} else {
+//				/* This should never happen */
+//				TM_USART_Puts(USART1, ": SENDING\n");
+//			}
+//		}
+//	}
+
+
+//-------------nothing down ----------------------------
 
