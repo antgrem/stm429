@@ -26,12 +26,14 @@ static void TouchThread(void const * argument);
 void TM_EXTI_Handler_15(void);
 void Init_Timer_for_SD(void);
 
-void Write_Data_to_SD (uint16_t Count); 
+void Write_Data_to_SD (uint16_t Count);
+void Write_Tempr_to_SD (uint16_t Count);
 
 void Init_CE_Gpio(void);
 
 	TM_L3GD20_t L3GD20_Data;
   char buffer[100];
+	char file_name_tempr[25], file_name_data[25];
 	float temp_f, maximum_rotation;
 	
 	float real_tempr;
@@ -53,7 +55,7 @@ uint16_t foo[2000][2] __attribute__((at(0xD0001000)));
 		/* Fatfs object */
 	FATFS FatFs;
 	/* File object */
-	FIL fil;
+	FIL fil, fil_Tempr;
 	/* Free and total space */
 	uint32_t total, free;
 	
@@ -81,13 +83,15 @@ TM_RTC_t datatime;
 TM_RTC_AlarmTime_t AlarmTime;
 
 //Array for WattMeasuring
-#define MAX_COUNT_ARRAY_WATT 299	//1799
+#define MAX_COUNT_ARRAY_WATT 299	
 #define TIME_FOR_GET_MEASURE 1000 // in ms
 uint16_t Watt[MAX_COUNT_ARRAY_WATT+1];
-TM_RTC_t Time[MAX_COUNT_ARRAY_WATT+1];
+TM_RTC_t Time[MAX_COUNT_ARRAY_WATT+1], Time_div_10[MAX_COUNT_ARRAY_WATT+1];
 float Temperature[MAX_COUNT_ARRAY_WATT+1];
 uint32_t Presure[MAX_COUNT_ARRAY_WATT+1];
-uint16_t Count_Array_Watt, Count_for_SD_Write;
+float avarage_temperature;
+uint32_t avarage_preshure;
+uint16_t Count_Array_Watt, Count_for_SD_Write, Count_Array_Tempr;
 
 int main(void) {
 	
@@ -96,6 +100,7 @@ int main(void) {
 	SystemInit();
 	
 	Count_Array_Watt = 0;
+	Count_Array_Tempr = 0;
 	
 	/* Initialize system and Delay functions */
 	TM_DELAY_Init();
@@ -215,8 +220,8 @@ int main(void) {
 							//Get time
 						TM_RTC_GetDateTime(&datatime, TM_RTC_Format_BIN);
 				//	sprintf(buffer, "0:F%02d_%02d_%04d.txt", datatime.date, datatime.month, datatime.year);
-						sprintf(buffer, "0:%04d_%02d_%02d.txt", datatime.year+2000, datatime.month, datatime.date);
-					temp_sd_res = f_open(&fil, (TCHAR*) buffer, FA_OPEN_EXISTING | FA_READ | FA_WRITE);
+						sprintf(file_name_data, "0:%04d_%02d_%02d_Watt.txt", datatime.year+2000, datatime.month, datatime.date);
+					temp_sd_res = f_open(&fil, (TCHAR*) file_name_data, FA_OPEN_EXISTING | FA_READ | FA_WRITE);
 							if (temp_sd_res != FR_OK) 
 								{
 									if (f_open(&fil, buffer, FA_CREATE_NEW | FA_READ | FA_WRITE) == FR_OK)
@@ -234,6 +239,28 @@ int main(void) {
 											}
 										}
 									}
+								else f_close(&fil);//file exists, was openned and must be closed
+									
+							sprintf(file_name_tempr, "0:%04d_%02d_%02d_Tempr_Pr.txt", datatime.year+2000, datatime.month, datatime.date);
+							temp_sd_res = f_open(&fil, (TCHAR*) file_name_data, FA_OPEN_EXISTING | FA_READ | FA_WRITE);
+							if (temp_sd_res != FR_OK) 
+								{
+									if (f_open(&fil, file_name_tempr, FA_CREATE_NEW | FA_READ | FA_WRITE) == FR_OK)
+										{//write redline
+											sprintf(buffer, "Data\t\tTime\t\tVoltage\tTempr\tPresure\n");
+											if(f_lseek(&fil, f_size(&fil)) == FR_OK){};
+												
+												/* If we put more than 0 characters (everything OK) */
+												if (f_puts(buffer, &fil) > 0) {
+													if (TM_FATFS_DriveSize(&total, &free) == FR_OK) {
+														/* Data for drive size are valid */
+														/* Close file, don't forget this! */
+														f_close(&fil);
+													}
+											}
+										}
+									}
+								else f_close(&fil);//file exists, was openned and must be closed
 					
 					
 					temp_sd_res = f_open(&fil, "0:Tempr.txt", FA_OPEN_EXISTING | FA_READ | FA_WRITE);
@@ -254,6 +281,7 @@ int main(void) {
 									}
 								}
 							}
+						else f_close(&fil);//file exists, was openned and must be closed
 							
 							/* Unmount drive, don't forget this! */
 							f_mount(0, "0:", 1);
@@ -333,11 +361,9 @@ static void StartThread(void const * argument)
 //Thread for measure data and write it to SD
 	portTickType xLastWakeTime;
 	uint16_t  ADC_Value, Max_ADC;
-	uint16_t	time_temp, temp_hours;
 	uint8_t tempr[2];
 	TM_BMP180_Oversampling_t BMP180_Oversampling;
 	float Voltage_ADC, Current_ADC;
-	uint32_t i;
 	
 	xLastWakeTime = xTaskGetTickCount();
 	Max_ADC = 0;
@@ -353,9 +379,6 @@ static void StartThread(void const * argument)
 	//Get time
   TM_RTC_GetDateTime(&datatime, TM_RTC_Format_BIN);
 	
-//	if (datatime.hours >= 13) temp_hours = datatime.hours - 12;
-	
-//	time_temp = (((temp_hours & 0x0F)<<12) | ((datatime.minutes & 0x3F)<<6) | (datatime.seconds));
 	//Read ADC1 channel 13
 	ADC_Value = TM_ADC_Read(ADC1, ADC_Channel_13);
 	
@@ -393,10 +416,19 @@ static void StartThread(void const * argument)
 		/* Read pressure value */
 		TM_BMP180_ReadPressure(&BMP180_Data);
 	
+		avarage_preshure = (avarage_preshure + BMP180_Data.Pressure)>>1;
+		avarage_temperature = (avarage_temperature + real_tempr)/2.0f;
+		
+		if ((datatime.minutes % 10) == 0)
+		{
+			Temperature[Count_Array_Tempr] = avarage_temperature;
+			Presure[Count_Array_Tempr] = avarage_preshure;
+			Time_div_10[Count_Array_Tempr] = datatime;
+		}
+		
 		Time[Count_Array_Watt] = datatime;
 		Watt[Count_Array_Watt] = ADC_Value;
-		Temperature[Count_Array_Watt] = real_tempr;
-		Presure[Count_Array_Watt] = BMP180_Data.Pressure;
+		
 			
 		Max_ADC = (Max_ADC < ADC_Value) ? ADC_Value : Max_ADC;
 		
@@ -432,18 +464,31 @@ static void StartThread(void const * argument)
 		}
 
 	Count_Array_Watt++;
-	if ((Count_Array_Watt > MAX_COUNT_ARRAY_WATT) || TM_DISCO_ButtonPressed())
-	{
-		Count_for_SD_Write = Count_Array_Watt - 1;
-		TM_DISCO_LedOn(LED_RED);
-//		xSemaphoreGive(xSDcard_write);
-//	  xSemaphoreTake(xSDcard_written_done, portMAX_DELAY);
-		Count_Array_Watt = 0;
-		Max_ADC = 0;
+	Count_Array_Tempr++;
 		
-		Write_Data_to_SD (Count_for_SD_Write);
-				
-	}
+	if (Count_Array_Watt > MAX_COUNT_ARRAY_WATT)
+		{
+			Write_Data_to_SD (Count_Array_Watt - 1);
+			TM_DISCO_LedOn(LED_RED);
+			Count_Array_Watt = 0;
+			Max_ADC = 0;
+		}
+	
+	if (Count_Array_Tempr > MAX_COUNT_ARRAY_WATT)
+		{
+			Write_Tempr_to_SD (Count_Array_Tempr - 1);
+			TM_DISCO_LedOn(LED_RED);
+			Count_Array_Tempr = 0;
+			
+		}
+		
+	if (TM_DISCO_ButtonPressed())
+		{
+			Write_Data_to_SD (Count_Array_Watt - 1);
+			Write_Tempr_to_SD (Count_Array_Tempr - 1);
+			Count_Array_Watt = 0;
+			Count_Array_Tempr = 0;
+		}
 	
 		
 		osDelay(TIME_FOR_GET_MEASURE);
@@ -742,8 +787,8 @@ void Write_Data_to_SD (uint16_t Count)
 			if (f_mount(&FatFs, "0:", 1) == FR_OK) {
 								
 				/* Try to open file */
-				if (f_open(&fil, "0:Tempr.txt", FA_OPEN_ALWAYS | FA_READ | FA_WRITE) == FR_OK) {
-					/* File opened, turn off RED and turn on GREEN led */
+				if (f_open(&fil, file_name_data, FA_OPEN_ALWAYS | FA_READ | FA_WRITE) == FR_OK) 
+					{
 			
 					for (i=0; i<=Count; i++)
 						{
@@ -760,10 +805,43 @@ void Write_Data_to_SD (uint16_t Count)
 								}
 							}
 						}
-					
-					
+				
+					/* Close file, don't forget this! */
+					f_close(&fil);
+				}
+				
+				/* Unmount drive, don't forget this! */
+				f_mount(0, "0:", 1);
+			}	
+}
 
-					
+
+
+void Write_Tempr_to_SD (uint16_t Count)
+{
+	uint16_t i;
+			if (f_mount(&FatFs, "0:", 1) == FR_OK) {
+								
+				/* Try to open file */
+				if (f_open(&fil, file_name_tempr, FA_OPEN_ALWAYS | FA_READ | FA_WRITE) == FR_OK) 
+					{
+			
+					for (i=0; i<=Count; i++)
+						{
+							// We were able to obtain the semaphore and can now access the shared resource.
+							datatime = Time[i];
+							sprintf(buffer, "%02d.%02d.%04d\t%02d:%02d:%02d\t%u\t%.2f\t%u\n", datatime.date, datatime.month, datatime.year + 2000, datatime.hours, datatime.minutes, datatime.seconds, Watt[i], Temperature[i], Presure[i]);
+							if(f_lseek(&fil, f_size(&fil)) == FR_OK){};
+							
+							/* If we put more than 0 characters (everything OK) */
+							if (f_puts(buffer, &fil) > 0) {
+								if (TM_FATFS_DriveSize(&total, &free) == FR_OK) {
+									/* Data for drive size are valid */
+									
+								}
+							}
+						}
+				
 					/* Close file, don't forget this! */
 					f_close(&fil);
 				}
