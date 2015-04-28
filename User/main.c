@@ -432,7 +432,7 @@ static void StartThread(void const * argument)
 	if ((Count_Array_Watt > MAX_COUNT_ARRAY_WATT) || TM_DISCO_ButtonPressed())
 	{
 		Count_for_SD_Write = Count_Array_Watt - 1;
-		TM_DISCO_LedOn(LED_RED);
+//		TM_DISCO_LedOn(LED_RED);
 //		xSemaphoreGive(xSDcard_write);
 //	  xSemaphoreTake(xSDcard_written_done, portMAX_DELAY);
 		Count_Array_Watt = 0;
