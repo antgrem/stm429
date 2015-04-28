@@ -83,7 +83,8 @@ TM_RTC_AlarmTime_t AlarmTime;
 //Array for WattMeasuring
 #define MAX_COUNT_ARRAY_WATT 299	//1799
 #define TIME_FOR_GET_MEASURE 1000 // in ms
-uint16_t Watt[MAX_COUNT_ARRAY_WATT+1][2];
+uint16_t Watt[MAX_COUNT_ARRAY_WATT+1];
+TM_RTC_t Time[MAX_COUNT_ARRAY_WATT+1];
 float Temperature[MAX_COUNT_ARRAY_WATT+1];
 uint32_t Presure[MAX_COUNT_ARRAY_WATT+1];
 uint16_t Count_Array_Watt, Count_for_SD_Write;
@@ -107,7 +108,7 @@ int main(void) {
 	
 	Init_CE_Gpio();
 	
-	Init_Timer_for_SD();
+//	Init_Timer_for_SD();
 	
     //Initialize RTC with internal 32768Hz clock
     //It's not very accurate
@@ -211,13 +212,36 @@ int main(void) {
 // 
 			if (f_mount(&FatFs, "0:", 1) == FR_OK) 
 				{
-							
+							//Get time
+						TM_RTC_GetDateTime(&datatime, TM_RTC_Format_BIN);
+				//	sprintf(buffer, "0:F%02d_%02d_%04d.txt", datatime.date, datatime.month, datatime.year);
+						sprintf(buffer, "0:%04d_%02d_%02d.txt", datatime.year+2000, datatime.month, datatime.date);
+					temp_sd_res = f_open(&fil, (TCHAR*) buffer, FA_OPEN_EXISTING | FA_READ | FA_WRITE);
+							if (temp_sd_res != FR_OK) 
+								{
+									if (f_open(&fil, buffer, FA_CREATE_NEW | FA_READ | FA_WRITE) == FR_OK)
+										{//write redline
+											sprintf(buffer, "Data\t\tTime\t\tVoltage\tTempr\tPresure\n");
+											if(f_lseek(&fil, f_size(&fil)) == FR_OK){};
+												
+												/* If we put more than 0 characters (everything OK) */
+												if (f_puts(buffer, &fil) > 0) {
+													if (TM_FATFS_DriveSize(&total, &free) == FR_OK) {
+														/* Data for drive size are valid */
+														/* Close file, don't forget this! */
+														f_close(&fil);
+													}
+											}
+										}
+									}
+					
+					
 					temp_sd_res = f_open(&fil, "0:Tempr.txt", FA_OPEN_EXISTING | FA_READ | FA_WRITE);
 					if (temp_sd_res != FR_OK) 
 						{
 							if (f_open(&fil, "0:Tempr.txt", FA_CREATE_NEW | FA_READ | FA_WRITE) == FR_OK)
 								{//write redline
-									sprintf(buffer, "Time\t\tVol\tTempr\tPresure\n");
+									sprintf(buffer, "Data\t\tTime\t\tVoltage\tTempr\tPresure\n");
 									if(f_lseek(&fil, f_size(&fil)) == FR_OK){};
 										
 										/* If we put more than 0 characters (everything OK) */
@@ -261,7 +285,7 @@ int main(void) {
 //  osThreadCreate (osThread(SD_Thread), NULL);	
 
   /* Create Start thread */
-  osThreadDef(USER_Thread, StartThread, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
+  osThreadDef(USER_Thread, StartThread, osPriorityNormal, 0, 1024);//configMINIMAL_STACK_SIZE);
   osThreadCreate (osThread(USER_Thread), NULL);
 	
   /* Start scheduler */
@@ -329,9 +353,9 @@ static void StartThread(void const * argument)
 	//Get time
   TM_RTC_GetDateTime(&datatime, TM_RTC_Format_BIN);
 	
-	if (datatime.hours >= 13) temp_hours = datatime.hours - 12;
+//	if (datatime.hours >= 13) temp_hours = datatime.hours - 12;
 	
-	time_temp = (((temp_hours & 0x0F)<<12) | ((datatime.minutes & 0x3F)<<6) | (datatime.seconds));
+//	time_temp = (((temp_hours & 0x0F)<<12) | ((datatime.minutes & 0x3F)<<6) | (datatime.seconds));
 	//Read ADC1 channel 13
 	ADC_Value = TM_ADC_Read(ADC1, ADC_Channel_13);
 	
@@ -369,8 +393,8 @@ static void StartThread(void const * argument)
 		/* Read pressure value */
 		TM_BMP180_ReadPressure(&BMP180_Data);
 	
-		Watt[Count_Array_Watt][0] = time_temp;
-		Watt[Count_Array_Watt][1] = ADC_Value;
+		Time[Count_Array_Watt] = datatime;
+		Watt[Count_Array_Watt] = ADC_Value;
 		Temperature[Count_Array_Watt] = real_tempr;
 		Presure[Count_Array_Watt] = BMP180_Data.Pressure;
 			
@@ -386,21 +410,21 @@ static void StartThread(void const * argument)
 			{
 					// We were able to obtain the semaphore and can now access the shared resource.
 					
-					sprintf(buffer, "                             ");
+					sprintf(buffer, "                           ");
 					TM_ILI9341_Puts(10, 140, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 					TM_ILI9341_Puts(10, 160, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 					TM_ILI9341_Puts(10, 180, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 				  
-					sprintf(buffer, "%02d:%02d:%02d", datatime.hours, datatime.minutes, datatime.seconds);
+					sprintf(buffer, "%02d.%02d.%04d %02d:%02d:%02d",datatime.date, datatime.month, datatime.year + 2000, datatime.hours, datatime.minutes, datatime.seconds);
 					TM_ILI9341_Puts(10, 120, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 				  
-					sprintf(buffer, "i = %u   ADC = %u Max = %u",  Count_Array_Watt, ADC_Value, Max_ADC);
+					sprintf(buffer, "i = %u ADC = %u Max = %u",  Count_Array_Watt, ADC_Value, Max_ADC);
 					TM_ILI9341_Puts(10, 140, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 				
 					sprintf(buffer, "T = %.2f  B = %u", real_tempr, BMP180_Data.Pressure);
 					TM_ILI9341_Puts(10, 160, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 				
-					sprintf(buffer, "V = %.2f mV I = %.4f mA", Voltage_ADC, Current_ADC);
+					sprintf(buffer, "V = %.2f mV I = %.3f mA", Voltage_ADC, Current_ADC);
 					TM_ILI9341_Puts(10, 180, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 				  // We have finished accessing the shared resource.  Release the semaphore.
 					xSemaphoreGive( xMutex_LCD );
@@ -444,7 +468,7 @@ static void SDCardThread(void const * argument)
 			{
 				if (f_open(&fil, "0:Tempr.txt", FA_CREATE_NEW | FA_READ | FA_WRITE) == FR_OK)
 					{//write redline
-						sprintf(buffer, "Time\t\tVol\tTempr\tPresure\n");
+						sprintf(buffer, "Data\tTime\t\tVol\tTempr\tPresure\n");
 						if(f_lseek(&fil, f_size(&fil)) == FR_OK){};
 							
 							/* If we put more than 0 characters (everything OK) */
@@ -724,10 +748,8 @@ void Write_Data_to_SD (uint16_t Count)
 					for (i=0; i<=Count; i++)
 						{
 							// We were able to obtain the semaphore and can now access the shared resource.
-							datatime.hours = (Watt[i][0] & 0xF000)>>12;
-							datatime.minutes = (Watt[i][0] & 0x0FC0)>>6;
-							datatime.seconds = (Watt[i][0] & 0x3F);
-							sprintf(buffer, "%02d:%02d:%02d\t%u\t%.2f\t%u\n", datatime.hours, datatime.minutes, datatime.seconds, Watt[i][1], Temperature[i], Presure[i]);
+							datatime = Time[i];
+							sprintf(buffer, "%02d.%02d.%04d\t%02d:%02d:%02d\t%u\t%.2f\t%u\n", datatime.date, datatime.month, datatime.year + 2000, datatime.hours, datatime.minutes, datatime.seconds, Watt[i], Temperature[i], Presure[i]);
 							if(f_lseek(&fil, f_size(&fil)) == FR_OK){};
 							
 							/* If we put more than 0 characters (everything OK) */
