@@ -42,6 +42,9 @@ void Init_CE_Gpio(void);
 	
 	FRESULT temp_sd_res;
 	
+
+uint16_t foo[2000][2] __attribute__((at(0xD0001000)));
+ 
 	xTaskHandle xTouchThread;
 	xSemaphoreHandle  xMutex_LCD, xWatt_1_sec_measure;
 	xSemaphoreHandle  xSDcard_write, xSDcard_written_done;
