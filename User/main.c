@@ -224,7 +224,7 @@ int main(void) {
 					temp_sd_res = f_open(&fil, (TCHAR*) file_name_data, FA_OPEN_EXISTING | FA_READ | FA_WRITE);
 							if (temp_sd_res != FR_OK) 
 								{
-									if (f_open(&fil, buffer, FA_CREATE_NEW | FA_READ | FA_WRITE) == FR_OK)
+									if (f_open(&fil, file_name_data, FA_CREATE_NEW | FA_READ | FA_WRITE) == FR_OK)
 										{//write redline
 											sprintf(buffer, "Data\t\tTime\t\tVoltage\tTempr\tPresure\n");
 											if(f_lseek(&fil, f_size(&fil)) == FR_OK){};
@@ -242,7 +242,7 @@ int main(void) {
 								else f_close(&fil);//file exists, was openned and must be closed
 									
 							sprintf(file_name_tempr, "0:%04d_%02d_%02d_Tempr_Pr.txt", datatime.year+2000, datatime.month, datatime.date);
-							temp_sd_res = f_open(&fil, (TCHAR*) file_name_data, FA_OPEN_EXISTING | FA_READ | FA_WRITE);
+							temp_sd_res = f_open(&fil, (TCHAR*) file_name_tempr, FA_OPEN_EXISTING | FA_READ | FA_WRITE);
 							if (temp_sd_res != FR_OK) 
 								{
 									if (f_open(&fil, file_name_tempr, FA_CREATE_NEW | FA_READ | FA_WRITE) == FR_OK)
