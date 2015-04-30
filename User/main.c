@@ -375,6 +375,7 @@ static void StartThread(void const * argument)
   {
 			
   GPIO_ToggleBits(GPIOG, GPIO_Pin_13);
+	TM_DISCO_LedOn(LED_GREEN);
 			
 	//Get time
   TM_RTC_GetDateTime(&datatime, TM_RTC_Format_BIN);
@@ -382,11 +383,13 @@ static void StartThread(void const * argument)
 	//Read ADC1 channel 13
 	ADC_Value = TM_ADC_Read(ADC1, ADC_Channel_13);
 	
-	Voltage_ADC = (float)ADC_Value * 0.805664f * 1.8f;
+//	Voltage_ADC = (float)ADC_Value * 0.805664f * 1.8f;
+	Voltage_ADC = (float)ADC_Value * 1.45f;
 	Current_ADC = Voltage_ADC / 30.0f;
 	
 	TM_I2C_ReadMulti(STMPE811_I2C, LM75_ADDRESS, 0x00, tempr, 2); // Read temperature from LM75
 	real_tempr = (float)tempr[0] + 0.125*(tempr[1]>>5);
+		if (real_tempr == 0.f) TM_ILI9341_Puts(60, 40, "Error init LM75", &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_RED);			
 
 	/* Start temperature conversion */
 		TM_BMP180_StartTemperature(&BMP180_Data);
@@ -419,11 +422,12 @@ static void StartThread(void const * argument)
 		avarage_preshure = (avarage_preshure + BMP180_Data.Pressure)>>1;
 		avarage_temperature = (avarage_temperature + real_tempr)/2.0f;
 		
-		if ((datatime.minutes % 10) == 0)
+		if (((datatime.minutes % 10) == 0) && (datatime.seconds == 0))
 		{
 			Temperature[Count_Array_Tempr] = avarage_temperature;
 			Presure[Count_Array_Tempr] = avarage_preshure;
 			Time_div_10[Count_Array_Tempr] = datatime;
+			Count_Array_Tempr++;
 		}
 		
 		Time[Count_Array_Watt] = datatime;
@@ -431,7 +435,6 @@ static void StartThread(void const * argument)
 		
 			
 		Max_ADC = (Max_ADC < ADC_Value) ? ADC_Value : Max_ADC;
-		
 
 			
 	if( xMutex_LCD != NULL )
@@ -442,11 +445,6 @@ static void StartThread(void const * argument)
 			{
 					// We were able to obtain the semaphore and can now access the shared resource.
 					
-					sprintf(buffer, "                           ");
-					TM_ILI9341_Puts(10, 140, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
-					TM_ILI9341_Puts(10, 160, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
-					TM_ILI9341_Puts(10, 180, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
-				  
 					sprintf(buffer, "%02d.%02d.%04d %02d:%02d:%02d",datatime.date, datatime.month, datatime.year + 2000, datatime.hours, datatime.minutes, datatime.seconds);
 					TM_ILI9341_Puts(10, 120, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 				  
@@ -464,26 +462,33 @@ static void StartThread(void const * argument)
 		}
 
 	Count_Array_Watt++;
-	Count_Array_Tempr++;
+
+		
+		TM_DISCO_LedOff(LED_GREEN);
+		
+//	if (Count_Array_Watt > MAX_COUNT_ARRAY_WATT)
+//		{
+//			Write_Data_to_SD (Count_Array_Watt - 1);
+//			TM_DISCO_LedOn(LED_RED);
+//			Count_Array_Watt = 0;
+//			Max_ADC = 0;
+//		}
 		
 	if (Count_Array_Watt > MAX_COUNT_ARRAY_WATT)
-		{
-			Write_Data_to_SD (Count_Array_Watt - 1);
-			TM_DISCO_LedOn(LED_RED);
-			Count_Array_Watt = 0;
-			Max_ADC = 0;
-		}
+		Max_ADC = (TM_DISCO_LedOn(LED_RED), Write_Data_to_SD (Count_Array_Watt - 1), Count_Array_Watt = 0,  0);
+			
 	
 	if (Count_Array_Tempr > MAX_COUNT_ARRAY_WATT)
 		{
-			Write_Tempr_to_SD (Count_Array_Tempr - 1);
 			TM_DISCO_LedOn(LED_RED);
+			Write_Tempr_to_SD (Count_Array_Tempr - 1);
 			Count_Array_Tempr = 0;
 			
 		}
 		
 	if (TM_DISCO_ButtonPressed())
 		{
+			TM_DISCO_LedOn(LED_RED);
 			Write_Data_to_SD (Count_Array_Watt - 1);
 			Write_Tempr_to_SD (Count_Array_Tempr - 1);
 			Count_Array_Watt = 0;
@@ -492,7 +497,28 @@ static void StartThread(void const * argument)
 	
 		
 		osDelay(TIME_FOR_GET_MEASURE);
-//		osDelayUntil(xLastWakeTime, 1000);
+		//		osDelayUntil(xLastWakeTime, 1000);
+				
+			if( xMutex_LCD != NULL )
+		{
+			// See if we can obtain the semaphore.  If the semaphore is not available
+			// wait 10 ticks to see if it becomes free.	
+			if (xSemaphoreTake( xMutex_LCD, ( portTickType ) 50 ) == pdTRUE)
+			{
+					// We were able to obtain the semaphore and can now access the shared resource.
+					
+					sprintf(buffer, "                           ");
+					TM_ILI9341_Puts(10, 140, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
+					TM_ILI9341_Puts(10, 160, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
+					TM_ILI9341_Puts(10, 180, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
+				  TM_ILI9341_Puts(60, 40, buffer, &TM_Font_11x18, BackGround, ILI9341_COLOR_RED);//error massege LM75
+					
+				  // We have finished accessing the shared resource.  Release the semaphore.
+					xSemaphoreGive( xMutex_LCD );
+			}
+		}
+
+
   }
 
 	vTaskDelete( NULL );
