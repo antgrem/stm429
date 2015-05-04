@@ -36,7 +36,7 @@ void Init_CE_Gpio(void);
 	char file_name_tempr[25], file_name_data[25];
 	float temp_f, maximum_rotation;
 	
-	float real_tempr;
+	double real_tempr;
 	TM_STMPE811_TouchData Coord_811, Statik_Coord;
 	uint16_t flag;
 	uint8_t temp;
@@ -45,7 +45,7 @@ void Init_CE_Gpio(void);
 	FRESULT temp_sd_res;
 	
 
-uint16_t foo[2000][2] __attribute__((at(0xD0001000)));
+//uint16_t foo[2000][2] __attribute__((at(0xD0001000)));
  
 	xTaskHandle xTouchThread;
 	xSemaphoreHandle  xMutex_LCD, xWatt_1_sec_measure;
@@ -87,11 +87,12 @@ TM_RTC_AlarmTime_t AlarmTime;
 #define TIME_FOR_GET_MEASURE 1000 // in ms
 uint16_t Watt[MAX_COUNT_ARRAY_WATT+1];
 TM_RTC_t Time[MAX_COUNT_ARRAY_WATT+1], Time_div_10[MAX_COUNT_ARRAY_WATT+1];
-float Temperature[MAX_COUNT_ARRAY_WATT+1];
+double Temperature[MAX_COUNT_ARRAY_WATT+1];
 uint32_t Presure[MAX_COUNT_ARRAY_WATT+1];
-float avarage_temperature;
+double avarage_temperature;
 uint32_t avarage_preshure;
 uint16_t Count_Array_Watt, Count_for_SD_Write, Count_Array_Tempr;
+uint32_t time_for_mount, time_for_open, time_for_write;
 
 int main(void) {
 	
@@ -360,10 +361,11 @@ static void StartThread(void const * argument)
 {
 //Thread for measure data and write it to SD
 	portTickType xLastWakeTime;
-	uint16_t  ADC_Value, Max_ADC;
+	uint16_t  ADC_Value, Max_ADC, ADC_Vbat;
 	uint8_t tempr[2];
 	TM_BMP180_Oversampling_t BMP180_Oversampling;
-	float Voltage_ADC, Current_ADC;
+	double Voltage_ADC, Current_ADC; 
+	double Voltage_Battery;
 	
 	xLastWakeTime = xTaskGetTickCount();
 	Max_ADC = 0;
@@ -382,15 +384,18 @@ static void StartThread(void const * argument)
 	
 	//Read ADC1 channel 13
 	ADC_Value = TM_ADC_Read(ADC1, ADC_Channel_13), TM_ADC_Read(ADC1, ADC_Channel_13), TM_ADC_Read(ADC1, ADC_Channel_13);
+		
+	ADC_Vbat = TM_ADC_ReadVbat(ADC1);
+	Voltage_Battery = (double) TM_ADC_ReadVbat(ADC1) * 4 * 3300. / 4096.;// value in mV. for stm32f429 V = Vbat/4
 	
 	
 //	Voltage_ADC = (float)ADC_Value * 0.805664f * 1.8f;
-	Voltage_ADC = (float)ADC_Value * 1.45f;
+	Voltage_ADC = (double)ADC_Value * 1.45f;
 	Current_ADC = Voltage_ADC / 30.0f;
 	
 	TM_I2C_ReadMulti(STMPE811_I2C, LM75_ADDRESS, 0x00, tempr, 2); // Read temperature from LM75
-	real_tempr = (float)tempr[0] + 0.125*(tempr[1]>>5);
-		if (real_tempr == 0.f) TM_ILI9341_Puts(60, 40, "Error init LM75", &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_RED);			
+	real_tempr = (double)tempr[0] + 0.125*(tempr[1]>>5);
+		if (real_tempr == 0.) TM_ILI9341_Puts(60, 40, "Error init LM75", &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_RED);			
 
 	/* Start temperature conversion */
 		TM_BMP180_StartTemperature(&BMP180_Data);
@@ -457,6 +462,9 @@ static void StartThread(void const * argument)
 				
 					sprintf(buffer, "V = %.2f mV I = %.3f mA", Voltage_ADC, Current_ADC);
 					TM_ILI9341_Puts(10, 180, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
+				
+					sprintf(buffer, "Vbat = %.2f mV, ADC_bat = %d", Voltage_Battery, ADC_Vbat);
+					TM_ILI9341_Puts(10, 200, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 				  // We have finished accessing the shared resource.  Release the semaphore.
 					xSemaphoreGive( xMutex_LCD );
 			}
@@ -491,6 +499,10 @@ static void StartThread(void const * argument)
 		{
 			TM_DISCO_LedOn(LED_RED);
 			Write_Data_to_SD (Count_Array_Watt - 1);
+			
+			sprintf(buffer, "m = %u o = %u w = %u",  time_for_mount, time_for_open, time_for_write);
+			TM_ILI9341_Puts(10, 80, buffer, &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_RED);
+			
 			Write_Tempr_to_SD (Count_Array_Tempr - 1);
 			Count_Array_Watt = 0;
 			Count_Array_Tempr = 0;
@@ -509,6 +521,7 @@ static void StartThread(void const * argument)
 					// We were able to obtain the semaphore and can now access the shared resource.
 					
 					sprintf(buffer, "                           ");
+					TM_ILI9341_Puts(10, 200, buffer, &TM_Font_11x18, 0x0000, BackGround);
 					TM_ILI9341_Puts(10, 140, buffer, &TM_Font_11x18, 0x0000, BackGround);
 					TM_ILI9341_Puts(10, 160, buffer, &TM_Font_11x18, 0x0000, BackGround);
 					TM_ILI9341_Puts(10, 180, buffer, &TM_Font_11x18, 0x0000, BackGround);
@@ -811,28 +824,40 @@ void Init_Timer_for_SD(void)
 void Write_Data_to_SD (uint16_t Count)
 {
 	uint16_t i;
+	
+		TIM5->ARR = 0x0F4240;
+	
 			if (f_mount(&FatFs, "0:", 1) == FR_OK) {
-								
+				
+				time_for_mount = 0x0F4240 - TIM5->ARR;
+				TIM5->ARR = 0x0F4240;
+				
 				/* Try to open file */
 				if (f_open(&fil, file_name_data, FA_OPEN_ALWAYS | FA_READ | FA_WRITE) == FR_OK) 
 					{
-			
-					for (i=0; i<=Count; i++)
+					time_for_open = 0x0F4240 - TIM5->ARR;
+					TIM5->ARR = 0x0F4240;
+					if(f_lseek(&fil, f_size(&fil)) == FR_OK) //move to the end of file
 						{
-							// We were able to obtain the semaphore and can now access the shared resource.
-							datatime = Time[i];
-							sprintf(buffer, "%02d.%02d.%04d\t%02d:%02d:%02d\t%u\t%.2f\t%u\n", datatime.date, datatime.month, datatime.year + 2000, datatime.hours, datatime.minutes, datatime.seconds, Watt[i], Temperature[i], Presure[i]);
-							if(f_lseek(&fil, f_size(&fil)) == FR_OK){};
-							
-							/* If we put more than 0 characters (everything OK) */
-							if (f_puts(buffer, &fil) > 0) {
-								if (TM_FATFS_DriveSize(&total, &free) == FR_OK) {
-									/* Data for drive size are valid */
-									
+						for (i=0; i<=Count; i++)
+							{
+								// We were able to obtain the semaphore and can now access the shared resource.
+								datatime = Time[i];
+								sprintf(buffer, "%02d.%02d.%04d\t%02d:%02d:%02d\t%u\t%.2f\t%u\n", datatime.date, datatime.month, datatime.year + 2000, datatime.hours, datatime.minutes, datatime.seconds, Watt[i], Temperature[i], Presure[i]);
+								
+								
+								/* If we put more than 0 characters (everything OK) */
+								if (f_puts(buffer, &fil) > 0) {
+									if (TM_FATFS_DriveSize(&total, &free) == FR_OK) {
+										/* Data for drive size are valid */
+										
+									}
 								}
 							}
-						}
-				
+						};
+					time_for_write = 0x0F4240 - TIM5->ARR;
+					TIM5->ARR = 0x0F4240;
+									
 					/* Close file, don't forget this! */
 					f_close(&fil);
 				}
@@ -852,13 +877,13 @@ void Write_Tempr_to_SD (uint16_t Count)
 				/* Try to open file */
 				if (f_open(&fil, file_name_tempr, FA_OPEN_ALWAYS | FA_READ | FA_WRITE) == FR_OK) 
 					{
-			
+					if(f_lseek(&fil, f_size(&fil)) == FR_OK){//move to the end of file
 					for (i=0; i<=Count; i++)
 						{
 							// We were able to obtain the semaphore and can now access the shared resource.
 							datatime = Time[i];
 							sprintf(buffer, "%02d.%02d.%04d\t%02d:%02d:%02d\t%u\t%.2f\t%u\n", datatime.date, datatime.month, datatime.year + 2000, datatime.hours, datatime.minutes, datatime.seconds, Watt[i], Temperature[i], Presure[i]);
-							if(f_lseek(&fil, f_size(&fil)) == FR_OK){};
+							
 							
 							/* If we put more than 0 characters (everything OK) */
 							if (f_puts(buffer, &fil) > 0) {
@@ -868,7 +893,7 @@ void Write_Tempr_to_SD (uint16_t Count)
 								}
 							}
 						}
-				
+					};
 					/* Close file, don't forget this! */
 					f_close(&fil);
 				}
