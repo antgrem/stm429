@@ -381,7 +381,8 @@ static void StartThread(void const * argument)
   TM_RTC_GetDateTime(&datatime, TM_RTC_Format_BIN);
 	
 	//Read ADC1 channel 13
-	ADC_Value = TM_ADC_Read(ADC1, ADC_Channel_13);
+	ADC_Value = TM_ADC_Read(ADC1, ADC_Channel_13), TM_ADC_Read(ADC1, ADC_Channel_13), TM_ADC_Read(ADC1, ADC_Channel_13);
+	
 	
 //	Voltage_ADC = (float)ADC_Value * 0.805664f * 1.8f;
 	Voltage_ADC = (float)ADC_Value * 1.45f;
@@ -446,7 +447,7 @@ static void StartThread(void const * argument)
 					// We were able to obtain the semaphore and can now access the shared resource.
 					
 					sprintf(buffer, "%02d.%02d.%04d %02d:%02d:%02d",datatime.date, datatime.month, datatime.year + 2000, datatime.hours, datatime.minutes, datatime.seconds);
-					TM_ILI9341_Puts(10, 120, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
+					TM_ILI9341_Puts(10, 120, buffer, &TM_Font_11x18, 0x0000, BackGround);
 				  
 					sprintf(buffer, "i = %u ADC = %u Max = %u",  Count_Array_Watt, ADC_Value, Max_ADC);
 					TM_ILI9341_Puts(10, 140, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
@@ -508,10 +509,10 @@ static void StartThread(void const * argument)
 					// We were able to obtain the semaphore and can now access the shared resource.
 					
 					sprintf(buffer, "                           ");
-					TM_ILI9341_Puts(10, 140, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
-					TM_ILI9341_Puts(10, 160, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
-					TM_ILI9341_Puts(10, 180, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
-				  TM_ILI9341_Puts(60, 40, buffer, &TM_Font_11x18, BackGround, ILI9341_COLOR_RED);//error massege LM75
+					TM_ILI9341_Puts(10, 140, buffer, &TM_Font_11x18, 0x0000, BackGround);
+					TM_ILI9341_Puts(10, 160, buffer, &TM_Font_11x18, 0x0000, BackGround);
+					TM_ILI9341_Puts(10, 180, buffer, &TM_Font_11x18, 0x0000, BackGround);
+				  TM_ILI9341_Puts(60, 40, buffer, &TM_Font_11x18, BackGround, BackGround);//error massege LM75
 					
 				  // We have finished accessing the shared resource.  Release the semaphore.
 					xSemaphoreGive( xMutex_LCD );
