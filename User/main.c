@@ -114,7 +114,7 @@ int main(void) {
 	
 	Init_CE_Gpio();
 	
-//	Init_Timer_for_SD();
+	Init_Timer_for_SD();
 	
     //Initialize RTC with internal 32768Hz clock
     //It's not very accurate
@@ -454,7 +454,7 @@ static void StartThread(void const * argument)
 					sprintf(buffer, "%02d.%02d.%04d %02d:%02d:%02d",datatime.date, datatime.month, datatime.year + 2000, datatime.hours, datatime.minutes, datatime.seconds);
 					TM_ILI9341_Puts(10, 120, buffer, &TM_Font_11x18, 0x0000, BackGround);
 				  
-					sprintf(buffer, "i = %u ADC = %u Max = %u",  Count_Array_Watt, ADC_Value, Max_ADC);
+					sprintf(buffer, "i= %u ADC= %u Max= %u",  Count_Array_Watt, ADC_Value, Max_ADC);
 					TM_ILI9341_Puts(10, 140, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 				
 					sprintf(buffer, "T = %.2f  B = %u", real_tempr, BMP180_Data.Pressure);
@@ -463,7 +463,7 @@ static void StartThread(void const * argument)
 					sprintf(buffer, "V = %.2f mV I = %.3f mA", Voltage_ADC, Current_ADC);
 					TM_ILI9341_Puts(10, 180, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 				
-					sprintf(buffer, "Vbat = %.2f mV, ADC_bat = %d", Voltage_Battery, ADC_Vbat);
+					sprintf(buffer, "Vbat= %.2f mV, bat= %d", Voltage_Battery, ADC_Vbat);
 					TM_ILI9341_Puts(10, 200, buffer, &TM_Font_11x18, 0x0000, ILI9341_COLOR_RED);
 				  // We have finished accessing the shared resource.  Release the semaphore.
 					xSemaphoreGive( xMutex_LCD );
@@ -817,7 +817,7 @@ void Init_Timer_for_SD(void)
 	tim.TIM_Period = 0x0F4240;//1s
 	TIM_TimeBaseInit(TIM5, &tim);
 	
-	TIM_Cmd(TIM6, ENABLE);	
+	TIM_Cmd(TIM5, ENABLE);	
 }
 
 
@@ -825,18 +825,18 @@ void Write_Data_to_SD (uint16_t Count)
 {
 	uint16_t i;
 	
-		TIM5->ARR = 0x0F4240;
+		TIM5->CNT = 0x0F4240;
 	
 			if (f_mount(&FatFs, "0:", 1) == FR_OK) {
 				
-				time_for_mount = 0x0F4240 - TIM5->ARR;
-				TIM5->ARR = 0x0F4240;
+				time_for_mount = 0x0F4240 - TIM5->CNT;
+				TIM5->CNT = 0x0F4240;
 				
 				/* Try to open file */
 				if (f_open(&fil, file_name_data, FA_OPEN_ALWAYS | FA_READ | FA_WRITE) == FR_OK) 
 					{
-					time_for_open = 0x0F4240 - TIM5->ARR;
-					TIM5->ARR = 0x0F4240;
+					time_for_open = 0x0F4240 - TIM5->CNT;
+					TIM5->CNT = 0x0F4240;
 					if(f_lseek(&fil, f_size(&fil)) == FR_OK) //move to the end of file
 						{
 						for (i=0; i<=Count; i++)
