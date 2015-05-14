@@ -25,6 +25,7 @@ static void SDCardThread(void const * argument);
 static void TouchThread(void const * argument);
 void TM_EXTI_Handler_15(void);
 void Init_Timer_for_SD(void);
+void Plot_Sin(void);
 
 void Write_Data_to_SD (uint16_t Count);
 void Write_Tempr_to_SD (uint16_t Count);
@@ -375,6 +376,8 @@ static void StartThread(void const * argument)
   {
 			
   TM_DISCO_LedOn(LED_GREEN);
+		
+	//Plot_Sin();
 			
 	//Get time
   TM_RTC_GetDateTime(&datatime, TM_RTC_Format_BIN);
@@ -937,6 +940,26 @@ void Write_Tempr_to_SD (uint16_t Count)
 			}	
 }
 
+
+void Plot_Sin(void)
+{
+	uint16_t Dot[ILI9341_HEIGHT];
+	uint16_t i;
+	
+	for (i = ILI9341_HEIGHT; i; i--)
+		Dot[i] = 0;
+	
+	TM_ILI9341_Fill(ILI9341_COLOR_WHITE);
+	
+	while(1)
+	{
+		TM_ILI9341_DrawPixel(Dot[i], i, ILI9341_COLOR_WHITE);
+		Dot[i] =(uint16_t) (120 + 120 * sin(i));
+		TM_ILI9341_DrawPixel(Dot[i], i, ILI9341_COLOR_BLACK);
+		osDelay(6);
+	}
+
+}
 
 //trash 
 //	/* Initialize NRF24L01+ on channel 15 and 32bytes of payload */
