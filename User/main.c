@@ -17,6 +17,7 @@
 #include "main.h"
 
 #define LM75_ADDRESS 0x9F
+#define PI 3.14159265
 
 /* Private function prototypes -----------------------------------------------*/
 static void StartThread(void const * argument);
@@ -25,6 +26,7 @@ static void SDCardThread(void const * argument);
 static void TouchThread(void const * argument);
 void TM_EXTI_Handler_15(void);
 void Init_Timer_for_SD(void);
+void Draw_Sin(void);
 
 void Write_Data_to_SD (uint16_t Count);
 void Write_Tempr_to_SD (uint16_t Count);
@@ -371,6 +373,8 @@ static void StartThread(void const * argument)
 	
 	osDelay(1900);
 
+	Draw_Sin();
+	
   for(;;)
   {
 			
@@ -505,26 +509,30 @@ static void StartThread(void const * argument)
 //		Max_ADC = (TM_DISCO_LedOn(LED_RED), Write_Data_to_SD (Count_Array_Watt - 1), Count_Array_Watt = 0,  0);
 			
 	
-	if (Count_Array_Tempr > MAX_COUNT_ARRAY_WATT)
+	if (Count_Array_Watt > MAX_COUNT_ARRAY_WATT)
 		{
 			TM_DISCO_LedOn(LED_RED);
-			Write_Tempr_to_SD (Count_Array_Tempr - 1);
-			Count_Array_Tempr = 0;
+			Write_Tempr_to_SD (Count_Array_Watt - 1);
+			Count_Array_Watt = 0;
 			
 		}
 		
 	if (TM_DISCO_ButtonPressed())
 		{
 			TM_DISCO_LedOn(LED_RED);
-			Write_Data_to_SD (Count_Array_Watt - 1);
+//			Write_Data_to_SD (Count_Array_Watt - 1);
+//			
+//			sprintf(buffer, "m = %u o = %u w = %u",  time_for_mount, time_for_open, time_for_write);
+//			TM_ILI9341_Puts(10, 80, buffer, &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_RED);
+//			
+			Write_Tempr_to_SD (Count_Array_Watt - 1);
+			
 			
 			sprintf(buffer, "m = %u o = %u w = %u",  time_for_mount, time_for_open, time_for_write);
 			TM_ILI9341_Puts(10, 80, buffer, &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_RED);
 			
-			Write_Tempr_to_SD (Count_Array_Tempr - 1);
-			
-			sprintf(buffer, "CWatt = %u CT = %u",  Count_Array_Watt, Count_Array_Tempr);
-			TM_ILI9341_Puts(10, 60, buffer, &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_RED);
+//			sprintf(buffer, "CWatt = %u CT = %u",  Count_Array_Watt, Count_Array_Tempr);
+//			TM_ILI9341_Puts(10, 60, buffer, &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_RED);
 			
 			Count_Array_Watt = 0;
 			Count_Array_Tempr = 0;
@@ -903,18 +911,18 @@ void Write_Tempr_to_SD (uint16_t Count)
 {
 	uint16_t i;
 	
-			TIM5->ARR = 0x0F4240;
+			TIM5->CNT = 0x0F4240;
 			if (f_mount(&FatFs, "0:", 1) == FR_OK) 
 				{
 					
-				time_for_mount = 0x0F4240 - TIM5->ARR;
-				TIM5->ARR = 0x0F4240;
+				time_for_mount = 0x0F4240 - TIM5->CNT;
+				TIM5->CNT = 0x0F4240;
 					
 				/* Try to open file */
 				if (f_open(&fil, "0:Tempr.txt", FA_OPEN_ALWAYS | FA_READ | FA_WRITE) == FR_OK) 
 					{
-					time_for_open = 0x0F4240 - TIM5->ARR;
-					TIM5->ARR = 0x0F4240;
+					time_for_open = 0x0F4240 - TIM5->CNT;
+					TIM5->CNT = 0x0F4240;
 						
 					if(f_lseek(&fil, f_size(&fil)) == FR_OK){//move to the end of file
 					for (i=0; i<=Count; i++)
@@ -933,8 +941,8 @@ void Write_Tempr_to_SD (uint16_t Count)
 							}
 						}
 					
-					time_for_write = 0x0F4240 - TIM5->ARR;
-					TIM5->ARR = 0x0F4240;
+					time_for_write = 0x0F4240 - TIM5->CNT;
+					TIM5->CNT = 0x0F4240;
 
 					};
 					/* Close file, don't forget this! */
@@ -946,6 +954,34 @@ void Write_Tempr_to_SD (uint16_t Count)
 			}	
 }
 
+
+void Draw_Sin(void)
+{
+	uint16_t Dot[320], Dot2[320];
+	uint16_t count_sin, j_sin;
+	
+	TM_ILI9341_Fill(ILI9341_COLOR_WHITE);
+	for (count_sin = 320; count_sin; count_sin--)
+		{
+			Dot[count_sin] = 0;
+			Dot2[count_sin] = 0;
+		}
+	
+	while(1)
+	{
+		TM_ILI9341_DrawPixel(count_sin, Dot[count_sin], ILI9341_COLOR_WHITE);
+		TM_ILI9341_DrawPixel(count_sin, Dot2[count_sin], ILI9341_COLOR_WHITE);
+		Dot[count_sin] = (uint16_t) 120. + 120.*sin(PI*j_sin/360.);
+		Dot2[count_sin] = (uint16_t) 120. + 120.*sin(PI*2.5*j_sin/360.);
+		TM_ILI9341_DrawPixel(count_sin, Dot[count_sin], ILI9341_COLOR_BLACK);
+		TM_ILI9341_DrawPixel(count_sin, Dot2[count_sin], ILI9341_COLOR_RED);
+		count_sin++;
+		j_sin++;
+		if (count_sin == 321) count_sin = 0;
+		osDelay(6);
+	}
+	
+}
 
 //trash 
 //	/* Initialize NRF24L01+ on channel 15 and 32bytes of payload */
