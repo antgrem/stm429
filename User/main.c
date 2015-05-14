@@ -401,6 +401,7 @@ static void StartThread(void const * argument)
 				GPIOA->MODER |= 0x00010000;//set SCL like output
 				for (i=9; i; i--) TM_GPIO_SetPinHigh(GPIOA, GPIO_PinSource8), osDelay(1), TM_GPIO_SetPinLow(GPIOA, GPIO_PinSource8), osDelay(1);
 				GPIOA->MODER |= 0x00030000;//set SCL like AF
+				STMPE811_I2C->SR1 &= ~(0x0100);
 				
 			}
 
@@ -458,19 +459,19 @@ static void StartThread(void const * argument)
 			{
 					// We were able to obtain the semaphore and can now access the shared resource.
 					
-					sprintf(buffer, "%02d.%02d.%04d \t%02d:%02d:%02d",datatime.date, datatime.month, datatime.year + 2000, datatime.hours, datatime.minutes, datatime.seconds);
-					TM_ILI9341_Puts(10, 120, buffer, &TM_Font_11x18, 0x0000, BackGround);
+					sprintf(buffer, "  %02d.%02d.%04d    %02d:%02d:%02d",datatime.date, datatime.month, datatime.year + 2000, datatime.hours, datatime.minutes, datatime.seconds);
+					TM_ILI9341_Puts(10, 3, buffer, &TM_Font_11x18, 0x0000, BackGround);
 				  
 					sprintf(buffer, "i = %u ADC = %u Max = %u",  Count_Array_Watt, ADC_Value, Max_ADC);
 					TM_ILI9341_Puts(10, 140, buffer, &TM_Font_11x18, 0x0000, BackGround);
 				
 					sprintf(buffer, "T = %.2f  B = %u", real_tempr, BMP180_Data.Pressure);
-					TM_ILI9341_Puts(10, 160, buffer, &TM_Font_11x18, 0x0000, BackGround);
+					TM_ILI9341_Puts(10, 20, buffer, &TM_Font_11x18, 0x0000, BackGround);
 				
-					sprintf(buffer, "V = %.2f mV I = %.3f mA", Voltage_ADC, Current_ADC);
+					sprintf(buffer, "V= %.2f mV I= %.3f mA", Voltage_ADC, Current_ADC);
 					TM_ILI9341_Puts(10, 180, buffer, &TM_Font_11x18, 0x0000, BackGround);
 				
-					sprintf(buffer, "Vbat = %.2f mV, ADC_bat = %d", Voltage_Battery, ADC_Vbat);
+					sprintf(buffer, "Vbat= %.2f mV, bat= %d", Voltage_Battery, ADC_Vbat);
 					TM_ILI9341_Puts(10, 200, buffer, &TM_Font_11x18, 0x0000, BackGround);
 				  // We have finished accessing the shared resource.  Release the semaphore.
 					xSemaphoreGive( xMutex_LCD );
@@ -512,7 +513,7 @@ static void StartThread(void const * argument)
 			
 			Write_Tempr_to_SD (Count_Array_Tempr - 1);
 			
-			sprintf(buffer, "Count_Array_Watt = %u Count_Array_Tempr = %u",  Count_Array_Watt, Count_Array_Tempr);
+			sprintf(buffer, "CWatt = %u CT = %u",  Count_Array_Watt, Count_Array_Tempr);
 			TM_ILI9341_Puts(10, 60, buffer, &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_RED);
 			
 			Count_Array_Watt = 0;
@@ -822,13 +823,21 @@ void Init_Timer_for_SD(void)
 	TIM_TimeBaseInitTypeDef tim;
 	
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM5, ENABLE);
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM4, ENABLE);
 	
 	TIM_TimeBaseStructInit(&tim);
 	tim.TIM_Prescaler = 84-1; //1MHz
 	tim.TIM_Period = 0x0F4240;//1s
 	TIM_TimeBaseInit(TIM5, &tim);
 	
+	
+	TIM_TimeBaseStructInit(&tim);
+	tim.TIM_Prescaler = 84-1; //1MHz
+	tim.TIM_Period = 0x04E20;//1s
+	TIM_TimeBaseInit(TIM4, &tim);
+	
 	TIM_Cmd(TIM5, ENABLE);	
+	TIM_Cmd(TIM4, ENABLE);
 }
 
 
