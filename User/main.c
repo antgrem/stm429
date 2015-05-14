@@ -163,16 +163,6 @@ int main(void) {
 	
 	TM_ADC_Read(ADC1, ADC_Channel_13);
 	
-	 /* Initialize BMP180 pressure sensor */
-    if (TM_BMP180_Init(&BMP180_Data) == TM_BMP180_Result_Ok) {
-        /* Init OK */
-       // TM_USART_Puts(USART1, "BMP180 configured and ready to use\n\n");
-    } else {
-        /* Device error */
-       	TM_ILI9341_Puts(120, 20, "Error init BMP180", &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_RED);
-    }
-	
-		
 	
 	/* Attach interrupt on pin PA15 = External line 15 */
 	/* Button connected on discovery boards */
@@ -204,85 +194,93 @@ int main(void) {
 			if (TM_I2C_Read(STMPE811_I2C, LM75_ADDRESS, 0x00) == 0)
 			{
 				TM_ILI9341_Puts(60, 40, "Error init LM75", &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_RED);
-				sprintf(buffer, "config = %u", TM_I2C_Read(STMPE811_I2C, LM75_ADDRESS, 0x01));
-				TM_ILI9341_Puts(60, 40, buffer, &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_RED);
 			}
 						
 			TM_I2C_Write(STMPE811_I2C, STMPE811_ADDRESS, STMPE811_INT_CTRL, 0x03);
 			TM_I2C_Write(STMPE811_I2C, STMPE811_ADDRESS, STMPE811_INT_STA, 0x01);
 			TM_I2C_Write(STMPE811_I2C, STMPE811_ADDRESS, STMPE811_INT_EN, 0x01);	
+			
+		/* Initialize BMP180 pressure sensor */
+    if (TM_BMP180_Init(&BMP180_Data) == TM_BMP180_Result_Ok) {
+        /* Init OK */
+       // TM_USART_Puts(USART1, "BMP180 configured and ready to use\n\n");
+    } else {
+        /* Device error */
+       	TM_ILI9341_Puts(120, 20, "Error init BMP180", &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_RED);
+    }
+		
 		};
 		
 
 		
-// 
+ 
 			if (f_mount(&FatFs, "0:", 1) == FR_OK) 
 				{
-							//Get time
-						TM_RTC_GetDateTime(&datatime, TM_RTC_Format_BIN);
-				//	sprintf(buffer, "0:F%02d_%02d_%04d.txt", datatime.date, datatime.month, datatime.year);
-						sprintf(file_name_data, "0:%04d_%02d_%02d_Watt.txt", datatime.year+2000, datatime.month, datatime.date);
-					temp_sd_res = f_open(&fil, (TCHAR*) file_name_data, FA_OPEN_EXISTING | FA_READ | FA_WRITE);
-							if (temp_sd_res != FR_OK) 
-								{
-									if (f_open(&fil, file_name_data, FA_CREATE_NEW | FA_READ | FA_WRITE) == FR_OK)
-										{//write redline
-											sprintf(buffer, "Data\t\tTime\t\tVoltage\tCurrent\tWatt\n");
-											if(f_lseek(&fil, f_size(&fil)) == FR_OK){};
-												
-												/* If we put more than 0 characters (everything OK) */
-												if (f_puts(buffer, &fil) > 0) {
-													if (TM_FATFS_DriveSize(&total, &free) == FR_OK) {
-														/* Data for drive size are valid */
-														/* Close file, don't forget this! */
-														f_close(&fil);
-													}
-											}
-										}
-									}
-								else f_close(&fil);//file exists, was openned and must be closed
-									
-							sprintf(file_name_tempr, "0:%04d_%02d_%02d_Tempr_Pr.txt", datatime.year+2000, datatime.month, datatime.date);
-							temp_sd_res = f_open(&fil, (TCHAR*) file_name_tempr, FA_OPEN_EXISTING | FA_READ | FA_WRITE);
-							if (temp_sd_res != FR_OK) 
-								{
-									if (f_open(&fil, file_name_tempr, FA_CREATE_NEW | FA_READ | FA_WRITE) == FR_OK)
-										{//write redline
-											sprintf(buffer, "Data\t\tTime\t\tTempr\tPresure\n");
-											if(f_lseek(&fil, f_size(&fil)) == FR_OK){};
-												
-												/* If we put more than 0 characters (everything OK) */
-												if (f_puts(buffer, &fil) > 0) {
-													if (TM_FATFS_DriveSize(&total, &free) == FR_OK) {
-														/* Data for drive size are valid */
-														/* Close file, don't forget this! */
-														f_close(&fil);
-													}
-											}
-										}
-									}
-								else f_close(&fil);//file exists, was openned and must be closed
-					
-					
-//					temp_sd_res = f_open(&fil, "0:Tempr.txt", FA_OPEN_EXISTING | FA_READ | FA_WRITE);
-//					if (temp_sd_res != FR_OK) 
-//						{
-//							if (f_open(&fil, "0:Tempr.txt", FA_CREATE_NEW | FA_READ | FA_WRITE) == FR_OK)
-//								{//write redline
-//									sprintf(buffer, "Data\t\tTime\t\tVoltage\tTempr\tPresure\n");
-//									if(f_lseek(&fil, f_size(&fil)) == FR_OK){};
-//										
-//										/* If we put more than 0 characters (everything OK) */
-//										if (f_puts(buffer, &fil) > 0) {
-//											if (TM_FATFS_DriveSize(&total, &free) == FR_OK) {
-//												/* Data for drive size are valid */
-//												/* Close file, don't forget this! */
-//												f_close(&fil);
+//							//Get time
+//						TM_RTC_GetDateTime(&datatime, TM_RTC_Format_BIN);
+//				//	sprintf(buffer, "0:F%02d_%02d_%04d.txt", datatime.date, datatime.month, datatime.year);
+//						sprintf(file_name_data, "0:%04d_%02d_%02d_Watt.txt", datatime.year+2000, datatime.month, datatime.date);
+//					temp_sd_res = f_open(&fil, (TCHAR*) file_name_data, FA_OPEN_EXISTING | FA_READ | FA_WRITE);
+//							if (temp_sd_res != FR_OK) 
+//								{
+//									if (f_open(&fil, file_name_data, FA_CREATE_NEW | FA_READ | FA_WRITE) == FR_OK)
+//										{//write redline
+//											sprintf(buffer, "Data\t\tTime\t\tVoltage\tCurrent\tWatt\n");
+//											if(f_lseek(&fil, f_size(&fil)) == FR_OK){};
+//												
+//												/* If we put more than 0 characters (everything OK) */
+//												if (f_puts(buffer, &fil) > 0) {
+//													if (TM_FATFS_DriveSize(&total, &free) == FR_OK) {
+//														/* Data for drive size are valid */
+//														/* Close file, don't forget this! */
+//														f_close(&fil);
+//													}
 //											}
+//										}
 //									}
-//								}
-//							}
-//						else f_close(&fil);//file exists, was openned and must be closed
+//								else f_close(&fil);//file exists, was openned and must be closed
+//									
+//							sprintf(file_name_tempr, "0:%04d_%02d_%02d_Tempr_Pr.txt", datatime.year+2000, datatime.month, datatime.date);
+//							temp_sd_res = f_open(&fil, (TCHAR*) file_name_tempr, FA_OPEN_EXISTING | FA_READ | FA_WRITE);
+//							if (temp_sd_res != FR_OK) 
+//								{
+//									if (f_open(&fil, file_name_tempr, FA_CREATE_NEW | FA_READ | FA_WRITE) == FR_OK)
+//										{//write redline
+//											sprintf(buffer, "Data\t\tTime\t\tTempr\tPresure\n");
+//											if(f_lseek(&fil, f_size(&fil)) == FR_OK){};
+//												
+//												/* If we put more than 0 characters (everything OK) */
+//												if (f_puts(buffer, &fil) > 0) {
+//													if (TM_FATFS_DriveSize(&total, &free) == FR_OK) {
+//														/* Data for drive size are valid */
+//														/* Close file, don't forget this! */
+//														f_close(&fil);
+//													}
+//											}
+//										}
+//									}
+//								else f_close(&fil);//file exists, was openned and must be closed
+					
+					
+					temp_sd_res = f_open(&fil, "0:Tempr.txt", FA_OPEN_EXISTING | FA_READ | FA_WRITE);
+					if (temp_sd_res != FR_OK) 
+						{
+							if (f_open(&fil, "0:Tempr.txt", FA_CREATE_NEW | FA_READ | FA_WRITE) == FR_OK)
+								{//write redline
+									sprintf(buffer, "Data\t\tTime\t\tVoltage\tTempr\tPresure\n");
+									if(f_lseek(&fil, f_size(&fil)) == FR_OK){};
+										
+										/* If we put more than 0 characters (everything OK) */
+										if (f_puts(buffer, &fil) > 0) {
+											if (TM_FATFS_DriveSize(&total, &free) == FR_OK) {
+												/* Data for drive size are valid */
+												/* Close file, don't forget this! */
+												f_close(&fil);
+											}
+									}
+								}
+							}
+						else f_close(&fil);//file exists, was openned and must be closed
 							
 							/* Unmount drive, don't forget this! */
 							f_mount(0, "0:", 1);
@@ -399,9 +397,19 @@ static void StartThread(void const * argument)
 				TM_ILI9341_Puts(60, 40, "Error init LM75", &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_RED);			
 				GPIOA->MODER &= ~(0x00030000);
 				GPIOA->MODER |= 0x00010000;//set SCL like output
-				for (i=9; i; i--) TM_GPIO_SetPinHigh(GPIOA, GPIO_PinSource8), osDelay(1), TM_GPIO_SetPinLow(GPIOA, GPIO_PinSource8), osDelay(1);
+				for (i=9; i; i--) 
+				{
+					TM_GPIO_SetPinHigh(GPIOA, GPIO_PinSource8);
+					osDelay(1);
+					TM_GPIO_SetPinLow(GPIOA, GPIO_PinSource8);
+					osDelay(1);
+				}
 				GPIOA->MODER |= 0x00030000;//set SCL like AF
 				STMPE811_I2C->SR1 &= ~(0x0100);
+				
+				I2C_SoftwareResetCmd(STMPE811_I2C, ENABLE);
+				osDelay(1);
+				I2C_SoftwareResetCmd(STMPE811_I2C, DISABLE);
 				
 			}
 
@@ -436,14 +444,16 @@ static void StartThread(void const * argument)
 		avarage_preshure = (avarage_preshure + BMP180_Data.Pressure)>>1;
 		avarage_temperature = (avarage_temperature + real_tempr)/2.0f;
 		
-		if (((datatime.minutes % 10) == 0) && (datatime.seconds == 0))
-		{
-			Temperature[Count_Array_Tempr] = avarage_temperature;
-			Presure[Count_Array_Tempr] = avarage_preshure;
-			Time_div_10[Count_Array_Tempr] = datatime;
-			Count_Array_Tempr++;
-		}
+//		if (((datatime.minutes % 10) == 0) && (datatime.seconds == 0))
+//		{
+//			Temperature[Count_Array_Tempr] = avarage_temperature;
+//			Presure[Count_Array_Tempr] = avarage_preshure;
+//			Time_div_10[Count_Array_Tempr] = datatime;
+//			Count_Array_Tempr++;
+//		}
 		
+		Temperature[Count_Array_Watt] = avarage_temperature;
+		Presure[Count_Array_Watt] = avarage_preshure;
 		Time[Count_Array_Watt] = datatime;
 		Watt[Count_Array_Watt] = ADC_Value;
 		
@@ -491,8 +501,8 @@ static void StartThread(void const * argument)
 //			Max_ADC = 0;
 //		}
 		
-	if (Count_Array_Watt > MAX_COUNT_ARRAY_WATT)
-		Max_ADC = (TM_DISCO_LedOn(LED_RED), Write_Data_to_SD (Count_Array_Watt - 1), Count_Array_Watt = 0,  0);
+//	if (Count_Array_Watt > MAX_COUNT_ARRAY_WATT)
+//		Max_ADC = (TM_DISCO_LedOn(LED_RED), Write_Data_to_SD (Count_Array_Watt - 1), Count_Array_Watt = 0,  0);
 			
 	
 	if (Count_Array_Tempr > MAX_COUNT_ARRAY_WATT)
@@ -901,7 +911,7 @@ void Write_Tempr_to_SD (uint16_t Count)
 				TIM5->ARR = 0x0F4240;
 					
 				/* Try to open file */
-				if (f_open(&fil, file_name_tempr, FA_OPEN_ALWAYS | FA_READ | FA_WRITE) == FR_OK) 
+				if (f_open(&fil, "0:Tempr.txt", FA_OPEN_ALWAYS | FA_READ | FA_WRITE) == FR_OK) 
 					{
 					time_for_open = 0x0F4240 - TIM5->ARR;
 					TIM5->ARR = 0x0F4240;
@@ -911,7 +921,7 @@ void Write_Tempr_to_SD (uint16_t Count)
 						{
 							// We were able to obtain the semaphore and can now access the shared resource.
 							datatime = Time[i];
-							sprintf(buffer, "%02d.%02d.%04d\t%02d:%02d:%02d\t%u\n", datatime.date, datatime.month, datatime.year + 2000, datatime.hours, datatime.minutes, datatime.seconds, Watt[i]);
+							sprintf(buffer, "%02d.%02d.%04d\t%02d:%02d:%02d\t%u\t%.2f\t%u\n", datatime.date, datatime.month, datatime.year + 2000, datatime.hours, datatime.minutes, datatime.seconds, Watt[i], Temperature[i], Presure[i]);
 							
 							
 							/* If we put more than 0 characters (everything OK) */
