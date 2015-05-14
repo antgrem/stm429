@@ -406,6 +406,10 @@ static void StartThread(void const * argument)
 				}
 				GPIOA->MODER |= 0x00030000;//set SCL like AF
 				
+				I2C_SoftwareResetCmd(STMPE811_I2C, ENABLE);
+				osDelay(1);
+				I2C_SoftwareResetCmd(STMPE811_I2C, DISABLE);
+				
 			}
 
 	/* Start temperature conversion */
@@ -439,14 +443,16 @@ static void StartThread(void const * argument)
 		avarage_preshure = (avarage_preshure + BMP180_Data.Pressure)>>1;
 		avarage_temperature = (avarage_temperature + real_tempr)/2.0f;
 		
-		if (((datatime.minutes % 10) == 0) && (datatime.seconds == 0))
-		{
-			Temperature[Count_Array_Tempr] = avarage_temperature;
-			Presure[Count_Array_Tempr] = avarage_preshure;
-			Time_div_10[Count_Array_Tempr] = datatime;
-			Count_Array_Tempr++;
-		}
+//		if (((datatime.minutes % 10) == 0) && (datatime.seconds == 0))
+//		{
+//			Temperature[Count_Array_Tempr] = avarage_temperature;
+//			Presure[Count_Array_Tempr] = avarage_preshure;
+//			Time_div_10[Count_Array_Tempr] = datatime;
+//			Count_Array_Tempr++;
+//		}
 		
+		Temperature[Count_Array_Watt] = avarage_temperature;
+		Presure[Count_Array_Watt] = avarage_preshure;
 		Time[Count_Array_Watt] = datatime;
 		Watt[Count_Array_Watt] = ADC_Value;
 		
@@ -494,8 +500,8 @@ static void StartThread(void const * argument)
 //			Max_ADC = 0;
 //		}
 		
-	if (Count_Array_Watt > MAX_COUNT_ARRAY_WATT)
-		Max_ADC = (TM_DISCO_LedOn(LED_RED), Write_Data_to_SD (Count_Array_Watt - 1), Count_Array_Watt = 0,  0);
+//	if (Count_Array_Watt > MAX_COUNT_ARRAY_WATT)
+//		Max_ADC = (TM_DISCO_LedOn(LED_RED), Write_Data_to_SD (Count_Array_Watt - 1), Count_Array_Watt = 0,  0);
 			
 	
 	if (Count_Array_Tempr > MAX_COUNT_ARRAY_WATT)
@@ -896,7 +902,7 @@ void Write_Tempr_to_SD (uint16_t Count)
 				TIM5->ARR = 0x0F4240;
 					
 				/* Try to open file */
-				if (f_open(&fil, file_name_tempr, FA_OPEN_ALWAYS | FA_READ | FA_WRITE) == FR_OK) 
+				if (f_open(&fil, "0:Tempr.txt", FA_OPEN_ALWAYS | FA_READ | FA_WRITE) == FR_OK) 
 					{
 					time_for_open = 0x0F4240 - TIM5->ARR;
 					TIM5->ARR = 0x0F4240;
@@ -906,7 +912,7 @@ void Write_Tempr_to_SD (uint16_t Count)
 						{
 							// We were able to obtain the semaphore and can now access the shared resource.
 							datatime = Time[i];
-							sprintf(buffer, "%02d.%02d.%04d\t%02d:%02d:%02d\t%u\n", datatime.date, datatime.month, datatime.year + 2000, datatime.hours, datatime.minutes, datatime.seconds, Watt[i]);
+							sprintf(buffer, "%02d.%02d.%04d\t%02d:%02d:%02d\t%u\t%.2f\t%u\n", datatime.date, datatime.month, datatime.year + 2000, datatime.hours, datatime.minutes, datatime.seconds, Watt[i], Temperature[i], Presure[i]);
 							
 							
 							/* If we put more than 0 characters (everything OK) */
