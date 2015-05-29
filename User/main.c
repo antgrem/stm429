@@ -449,18 +449,21 @@ static void StartThread(void const * argument)
 		avarage_preshure = (avarage_preshure + BMP180_Data.Pressure)>>1;
 		avarage_temperature = (avarage_temperature + real_tempr)/2.0f;
 		
-//		if (((datatime.minutes % 10) == 0) && (datatime.seconds == 0))
-//		{
-//			Temperature[Count_Array_Tempr] = avarage_temperature;
-//			Presure[Count_Array_Tempr] = avarage_preshure;
-//			Time_div_10[Count_Array_Tempr] = datatime;
-//			Count_Array_Tempr++;
-//		}
+		if (((datatime.minutes % 10) == 0) && (datatime.seconds == 0))
+		{
+			sprintf(buffer, "%02d", datatime.minutes);
+			TM_ILI9341_Puts(60, 210, buffer, &TM_Font_11x18, 0x0000, BackGround);
+		}
 		
-		Temperature[Count_Array_Watt] = avarage_temperature;
-		Presure[Count_Array_Watt] = avarage_preshure;
-		Time[Count_Array_Watt] = datatime;
-		Watt[Count_Array_Watt] = ADC_Value;
+		
+	if (datatime.seconds == 0)
+		{
+			Temperature[Count_Array_Watt] = avarage_temperature;
+			Presure[Count_Array_Watt] = avarage_preshure;
+			Time[Count_Array_Watt] = datatime;
+			Watt[Count_Array_Watt] = ADC_Value;
+			Count_Array_Watt++;
+		}
 		
 			
 		Max_ADC = (Max_ADC < ADC_Value) ? ADC_Value : Max_ADC;
@@ -493,7 +496,7 @@ static void StartThread(void const * argument)
 			}
 		}
 
-	Count_Array_Watt++;
+
 
 		
 		TM_DISCO_LedOff(LED_GREEN);
