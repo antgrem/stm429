@@ -374,7 +374,7 @@ static void StartThread(void const * argument)
 	
 	osDelay(1900);
 
-	Draw_Sin();
+//	Draw_Sin();
 	
   for(;;)
   {
