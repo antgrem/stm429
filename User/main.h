@@ -23,5 +23,6 @@
 #include <MPL115A1.h>
 #include "tm_stm32f4_fatfs.h"
 #include "tm_stm32f4_exti.h"
+#include "ff.h"
 
 #endif

@@ -58,11 +58,11 @@ static void rcvr_spi_multi (
 	UINT btr		/* Number of bytes to receive (even number) */
 )
 {
-	FATFS_DEBUG_SEND_USART("rcvr_spi_multi: inside");
+	//FATFS_DEBUG_SEND_USART("rcvr_spi_multi: inside");
 	
 	TM_SPI_ReadMulti(FATFS_SPI, buff, 0xFF, btr);
 	
-	FATFS_DEBUG_SEND_USART("rcvr_spi_multi: done"); 
+	//FATFS_DEBUG_SEND_USART("rcvr_spi_multi: done"); 
 }
 
 
@@ -73,7 +73,7 @@ static void xmit_spi_multi (
 	UINT btx			/* Number of bytes to send (even number) */
 )
 {
-	FATFS_DEBUG_SEND_USART("xmit_spi_multi: inside");
+	//FATFS_DEBUG_SEND_USART("xmit_spi_multi: inside");
 	
 	TM_SPI_WriteMulti(FATFS_SPI, (uint8_t *)buff, btx);
 }
@@ -95,9 +95,9 @@ static int wait_ready (	/* 1:Ready, 0:Timeout */
 		d = xchg_spi(0xFF);
 	} while (d != 0xFF && TM_DELAY_Time2());	/* Wait for card goes ready or timeout */
 	if (d == 0xFF) {
-		FATFS_DEBUG_SEND_USART("wait_ready: OK");
+	//	FATFS_DEBUG_SEND_USART("wait_ready: OK");
 	} else {
-		FATFS_DEBUG_SEND_USART("wait_ready: timeout");
+	//	FATFS_DEBUG_SEND_USART("wait_ready: timeout");
 	}
 	return (d == 0xFF) ? 1 : 0;
 }
@@ -112,7 +112,7 @@ static void deselect (void)
 {
 	FATFS_CS_HIGH;			/* CS = H */
 	xchg_spi(0xFF);			/* Dummy clock (force DO hi-z for multiple slave SPI) */
-	FATFS_DEBUG_SEND_USART("deselect: ok");
+//	FATFS_DEBUG_SEND_USART("deselect: ok");
 }
 
 
@@ -127,10 +127,10 @@ static int select (void)	/* 1:OK, 0:Timeout */
 	xchg_spi(0xFF);	/* Dummy clock (force DO enabled) */
 
 	if (wait_ready(500)) {
-		FATFS_DEBUG_SEND_USART("select: OK");
+	//	FATFS_DEBUG_SEND_USART("select: OK");
 		return 1;	/* OK */
 	}
-	FATFS_DEBUG_SEND_USART("select: no");
+//	FATFS_DEBUG_SEND_USART("select: no");
 	deselect();
 	return 0;	/* Timeout */
 }
@@ -148,7 +148,7 @@ static int rcvr_datablock (	/* 1:OK, 0:Error */
 {
 	BYTE token;
 	
-	FATFS_DEBUG_SEND_USART("rcvr_datablock: inside");
+//	FATFS_DEBUG_SEND_USART("rcvr_datablock: inside");
 	
 	//Timer1 = 200;
 	
@@ -158,13 +158,13 @@ static int rcvr_datablock (	/* 1:OK, 0:Error */
 		// This loop will take a time. Insert rot_rdq() here for multitask envilonment. 
 	} while ((token == 0xFF) && TM_DELAY_Time2());
 	if (token != 0xFE) {
-		FATFS_DEBUG_SEND_USART("rcvr_datablock: token != 0xFE");
+	//	FATFS_DEBUG_SEND_USART("rcvr_datablock: token != 0xFE");
 		return 0;		// Function fails if invalid DataStart token or timeout 
 	}
 
 	rcvr_spi_multi(buff, btr);		// Store trailing data to the buffer 
 	xchg_spi(0xFF); xchg_spi(0xFF);			// Discard CRC 
-	FATFS_DEBUG_SEND_USART("rcvr_datablock: return = 1");
+	//FATFS_DEBUG_SEND_USART("rcvr_datablock: return = 1");
 	return 1;						// Function succeeded 
 }
 
@@ -182,13 +182,13 @@ static int xmit_datablock (	/* 1:OK, 0:Failed */
 {
 	BYTE resp;
 	
-	FATFS_DEBUG_SEND_USART("xmit_datablock: inside");
+	//FATFS_DEBUG_SEND_USART("xmit_datablock: inside");
 
 	if (!wait_ready(500)) {
-		FATFS_DEBUG_SEND_USART("xmit_datablock: not ready");
+	//	FATFS_DEBUG_SEND_USART("xmit_datablock: not ready");
 		return 0;		/* Wait for card ready */
 	}
-	FATFS_DEBUG_SEND_USART("xmit_datablock: ready");
+	//FATFS_DEBUG_SEND_USART("xmit_datablock: ready");
 
 	xchg_spi(token);					/* Send token */
 	if (token != 0xFD) {				/* Send data if token is other than StopTran */
@@ -215,10 +215,10 @@ static BYTE send_cmd (		/* Return value: R1 resp (bit7==1:Failed to send) */
 {
 	BYTE n, res;
 
-	FATFS_DEBUG_SEND_USART("send_cmd: inside");
+	//FATFS_DEBUG_SEND_USART("send_cmd: inside");
 	
 	if (cmd & 0x80) {	/* Send a CMD55 prior to ACMD<n> */
-		FATFS_DEBUG_SEND_USART("send_cmd: 0x80 bit set");
+	//	FATFS_DEBUG_SEND_USART("send_cmd: 0x80 bit set");
 		cmd &= 0x7F;
 		res = send_cmd(CMD55, 0);
 		if (res > 1) return res;
@@ -226,7 +226,7 @@ static BYTE send_cmd (		/* Return value: R1 resp (bit7==1:Failed to send) */
 
 	/* Select the card and wait for ready except to stop multiple block read */
 	if (cmd != CMD12) {
-		FATFS_DEBUG_SEND_USART("send_cmd: cmd != CMD12");
+	//	FATFS_DEBUG_SEND_USART("send_cmd: cmd != CMD12");
 		deselect();
 		if (!select()) return 0xFF;
 	}
@@ -244,7 +244,7 @@ static BYTE send_cmd (		/* Return value: R1 resp (bit7==1:Failed to send) */
 
 	/* Receive command resp */
 	if (cmd == CMD12) {
-		FATFS_DEBUG_SEND_USART("send_cmd: CMD12, receive command resp");
+	//	FATFS_DEBUG_SEND_USART("send_cmd: CMD12, receive command resp");
 		xchg_spi(0xFF);					/* Diacard following one byte when CMD12 */
 	}
 	n = 10;								/* Wait for response (10 bytes max) */
@@ -314,7 +314,7 @@ uint8_t TM_FATFS_WriteEnabled(void) {
 DSTATUS TM_FATFS_SD_disk_initialize (void) {
 	BYTE n, cmd, ty, ocr[4];
 
-	FATFS_DEBUG_SEND_USART("disk_initialize: inside");
+//	FATFS_DEBUG_SEND_USART("disk_initialize: inside");
 	
 	//Initialize CS pin
 	TM_FATFS_InitPins();
@@ -328,7 +328,7 @@ DSTATUS TM_FATFS_SD_disk_initialize (void) {
 	}
 	ty = 0;
 	if (send_cmd(CMD0, 0) == 1) {				/* Put the card SPI/Idle state */
-		FATFS_DEBUG_SEND_USART("disk_initialize: CMD0 = 1");
+//		FATFS_DEBUG_SEND_USART("disk_initialize: CMD0 = 1");
 		//Timer1 = 1000;						/* Initialization timeout = 1 sec */
 		TM_DELAY_SetTime2(1000);
 		if (send_cmd(CMD8, 0x1AA) == 1) {	/* SDv2? */
@@ -355,7 +355,7 @@ DSTATUS TM_FATFS_SD_disk_initialize (void) {
 		}
 	}
 	TM_FATFS_SD_CardType = ty;	/* Card type */
-	FATFS_DEBUG_SEND_USART("disk_initialize: deselecting");
+//	FATFS_DEBUG_SEND_USART("disk_initialize: deselecting");
 	deselect();
 
 	if (ty) {			/* OK */
@@ -380,10 +380,10 @@ DSTATUS TM_FATFS_SD_disk_initialize (void) {
 /*-----------------------------------------------------------------------*/
 
 DSTATUS TM_FATFS_SD_disk_status (void) {
-	FATFS_DEBUG_SEND_USART("fatfs_sd_disk_status");
+//	FATFS_DEBUG_SEND_USART("fatfs_sd_disk_status");
 	
 	if (!TM_FATFS_Detect()) {
-		FATFS_DEBUG_SEND_USART("not detected");
+//FATFS_DEBUG_SEND_USART("not detected");
 		return STA_NOINIT;
 	}
 	
@@ -408,7 +408,7 @@ DRESULT TM_FATFS_SD_disk_read (
 	UINT count		/* Number of sectors to read (1..128) */
 )
 {
-	FATFS_DEBUG_SEND_USART("disk_read: inside");
+//	FATFS_DEBUG_SEND_USART("disk_read: inside");
 	if (!TM_FATFS_Detect() || (TM_FATFS_SD_Stat & STA_NOINIT)) {
 		return RES_NOTRDY;
 	}
@@ -450,12 +450,12 @@ DRESULT TM_FATFS_SD_disk_write (
 	UINT count			/* Number of sectors to write (1..128) */
 )
 {
-	FATFS_DEBUG_SEND_USART("disk_write: inside");
+//	FATFS_DEBUG_SEND_USART("disk_write: inside");
 	if (!TM_FATFS_Detect()) {
 		return RES_ERROR;
 	}
 	if (!TM_FATFS_WriteEnabled()) {
-		FATFS_DEBUG_SEND_USART("disk_write: Write protected!!! \n---------------------------------------------");
+//		FATFS_DEBUG_SEND_USART("disk_write: Write protected!!! \n---------------------------------------------");
 		return RES_WRPRT;
 	}
 	if (TM_FATFS_SD_Stat & STA_NOINIT) {

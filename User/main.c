@@ -23,6 +23,8 @@ static void StartThread(void const * argument);
 static void SensorsThread(void const * argument);
 static void SDCardThread(void const * argument);
 static void TouchThread(void const * argument);
+static void FatfThread (void const * argument);
+
 void TM_EXTI_Handler_15(void);
 void Init_Timer_for_SD(void);
 
@@ -108,6 +110,11 @@ int main(void) {
 	/* Initialize onboard leds */
 	TM_DISCO_LedInit();
 	
+	if(TM_SDRAM_Init())
+		{
+			TM_DISCO_LedOn(LED_GREEN);
+		}
+	
 	/* Initialize button on board */
 	TM_DISCO_ButtonInit(); 
 	
@@ -171,7 +178,7 @@ int main(void) {
        	TM_ILI9341_Puts(120, 20, "Error init BMP180", &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_RED);
     }
 	
-		
+		foo[0][0] = 505;
 	
 	/* Attach interrupt on pin PA15 = External line 15 */
 	/* Button connected on discovery boards */
@@ -231,11 +238,9 @@ int main(void) {
 												
 												/* If we put more than 0 characters (everything OK) */
 												if (f_puts(buffer, &fil) > 0) {
-													if (TM_FATFS_DriveSize(&total, &free) == FR_OK) {
-														/* Data for drive size are valid */
-														/* Close file, don't forget this! */
+													
 														f_close(&fil);
-													}
+													
 											}
 										}
 									}
@@ -252,11 +257,9 @@ int main(void) {
 												
 												/* If we put more than 0 characters (everything OK) */
 												if (f_puts(buffer, &fil) > 0) {
-													if (TM_FATFS_DriveSize(&total, &free) == FR_OK) {
-														/* Data for drive size are valid */
-														/* Close file, don't forget this! */
+													
 														f_close(&fil);
-													}
+													
 											}
 										}
 									}
@@ -273,11 +276,9 @@ int main(void) {
 										
 										/* If we put more than 0 characters (everything OK) */
 										if (f_puts(buffer, &fil) > 0) {
-											if (TM_FATFS_DriveSize(&total, &free) == FR_OK) {
-												/* Data for drive size are valid */
-												/* Close file, don't forget this! */
+											
 												f_close(&fil);
-											}
+											
 									}
 								}
 							}
@@ -302,8 +303,8 @@ int main(void) {
 			while(1);
 	
 //create thread for taken touch sensor data. it will be susspend after all
-//	osThreadDef(TouchThread, TouchThread, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
-//  xTouchThread = osThreadCreate (osThread(TouchThread), NULL);
+	osThreadDef(TouchThread, TouchThread, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
+  xTouchThread = osThreadCreate (osThread(TouchThread), NULL);
 		
 		
 //	osThreadDef(SensorsThread, SensorsThread, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
@@ -313,8 +314,12 @@ int main(void) {
 //  osThreadCreate (osThread(SD_Thread), NULL);	
 
   /* Create Start thread */
-  osThreadDef(USER_Thread, StartThread, osPriorityNormal, 0, 1024);//configMINIMAL_STACK_SIZE);
-  osThreadCreate (osThread(USER_Thread), NULL);
+//  osThreadDef(USER_Thread, StartThread, osPriorityNormal, 0, 1024);//configMINIMAL_STACK_SIZE);
+//  osThreadCreate (osThread(USER_Thread), NULL);
+		
+	/* Create Start thread */
+  osThreadDef(Fatf_Thread, FatfThread, osPriorityNormal, 0, 1024);//configMINIMAL_STACK_SIZE);
+  osThreadCreate (osThread(Fatf_Thread), NULL);
 	
   /* Start scheduler */
   osKernelStart(NULL, NULL);
@@ -330,6 +335,91 @@ int main(void) {
 }
 
 
+static void FatfThread (void const * argument)
+{
+	  FATFS *fs;
+    DWORD fre_clust, fre_sect, tot_sect;
+		FRESULT res;
+	  FILINFO file_info;
+	DIR dir;
+	FIL fil;
+	uint8_t i;
+	char *cp;
+	UINT count;
+
+	fs = &FatFs;
+	
+	sprintf(buffer, "%d", foo[0][0]);
+	TM_ILI9341_Puts(20, 20, buffer, &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_ORANGE);
+	
+	if (f_mount(fs, "0:", 1) == FR_OK) 
+		{
+			
+    /* Get volume information and free clusters of drive 1 */
+    res = f_getfree("0:", &fre_clust, &fs);
+    
+    /* Get total sectors and free sectors */
+    tot_sect = (fs->n_fatent - 2) * fs->csize;
+    fre_sect = fre_clust * fs->csize;
+
+    /* Print the free space (assuming 512 bytes/sector) */
+		sprintf(buffer, "%lu KiB total. %lu KiB free.",
+           tot_sect / 2, fre_sect / 2);
+		TM_ILI9341_Puts(20, 60, buffer, &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_ORANGE);
+			
+			i = 100;
+			res = f_opendir(&dir, "0:");
+			for (;;) {
+            res = f_readdir(&dir, &file_info);                   /* Read a directory item */
+            if (res != FR_OK || file_info.fname[0] == 0) break;  /* Break on error or end of dir */
+            if (file_info.fattrib & AM_DIR) {                    /* It is a directory */
+							
+            } else {                                       /* It is a file. */
+							sprintf(buffer, "%s/%s\n", "0:", file_info.fname);
+						TM_ILI9341_Puts(20, i, buffer, &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_ORANGE);
+							i += 20;
+						}
+        }
+        f_closedir(&dir);
+				
+				osDelay(1000);
+				TM_ILI9341_Fill(ILI9341_COLOR_BROWN);
+				
+				res = f_open(&fil, "Filatov.txt", FA_READ);
+				if (res == FR_OK)
+				{
+//					cp = buffer;
+//					while (cp != 0)
+//					{
+//					cp = f_gets(buffer, 100, &fil);
+//					TM_ILI9341_Puts(20,20,buffer,&TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_ORANGE);
+//						osDelay(500);
+//					}
+					
+					f_read(&fil, buffer, 100, &count);
+					TM_ILI9341_Puts(20,20,buffer,&TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_ORANGE);
+					
+					f_close(&fil);
+				}
+			
+			/* Unmount drive, don't forget this! */
+			f_mount(0, "0:", 1);
+		}
+		else 
+		{
+			sprintf(buffer, "mount not OK");
+		TM_ILI9341_Puts(20, 80, buffer, &TM_Font_11x18, ILI9341_COLOR_BLACK, ILI9341_COLOR_ORANGE);
+		}
+	for(;;)
+	{
+		osDelay(500);
+		TM_DISCO_LedOff(LED_RED);
+		osDelay(500);
+		TM_DISCO_LedOn(LED_RED);
+	}
+	
+	vTaskDelete( NULL );
+}
 static void TouchThread(void const * argument)
 {
 
@@ -544,11 +634,8 @@ static void SDCardThread(void const * argument)
 							
 							/* If we put more than 0 characters (everything OK) */
 							if (f_puts(buffer, &fil) > 0) {
-								if (TM_FATFS_DriveSize(&total, &free) == FR_OK) {
-									/* Data for drive size are valid */
-									/* Close file, don't forget this! */
-									f_close(&fil);
-								}
+												f_close(&fil);
+								
 						}
 					}
 				}
@@ -825,10 +912,7 @@ void Write_Data_to_SD (uint16_t Count)
 							
 							/* If we put more than 0 characters (everything OK) */
 							if (f_puts(buffer, &fil) > 0) {
-								if (TM_FATFS_DriveSize(&total, &free) == FR_OK) {
-									/* Data for drive size are valid */
-									
-								}
+								
 							}
 						}
 				
@@ -861,10 +945,7 @@ void Write_Tempr_to_SD (uint16_t Count)
 							
 							/* If we put more than 0 characters (everything OK) */
 							if (f_puts(buffer, &fil) > 0) {
-								if (TM_FATFS_DriveSize(&total, &free) == FR_OK) {
-									/* Data for drive size are valid */
-									
-								}
+								
 							}
 						}
 				
