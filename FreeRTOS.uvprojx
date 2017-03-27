@@ -618,6 +618,16 @@
               <FileType>1</FileType>
               <FilePath>.\User\nFR24L01\tm_stm32f4_nrf24l01.c</FilePath>
             </File>
+            <File>
+              <FileName>sensors.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\User\sensors.c</FilePath>
+            </File>
+            <File>
+              <FileName>Book.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\User\Book.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

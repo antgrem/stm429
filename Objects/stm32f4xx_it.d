@@ -77,4 +77,8 @@
 .\objects\stm32f4xx_it.o: .\User\fatfs\integer.h
 .\objects\stm32f4xx_it.o: .\User\fatfs\ffconf.h
 .\objects\stm32f4xx_it.o: .\00-STM32F429_LIBRARIES\tm_stm32f4_exti.h
+.\objects\stm32f4xx_it.o: User\sensors.h
+.\objects\stm32f4xx_it.o: User\Book.h
+.\objects\stm32f4xx_it.o: .\FreeRTOS\Source\CMSIS_RTOS\cmsis_os.h
+.\objects\stm32f4xx_it.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
 .\objects\stm32f4xx_it.o: .\FreeRTOS\Source\CMSIS_RTOS\cmsis_os.h

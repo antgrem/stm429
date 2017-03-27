@@ -76,3 +76,7 @@
 .\objects\main.o: .\User\fatfs\integer.h
 .\objects\main.o: .\User\fatfs\ffconf.h
 .\objects\main.o: .\00-STM32F429_LIBRARIES\tm_stm32f4_exti.h
+.\objects\main.o: User\sensors.h
+.\objects\main.o: User\Book.h
+.\objects\main.o: .\FreeRTOS\Source\CMSIS_RTOS\cmsis_os.h
+.\objects\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
